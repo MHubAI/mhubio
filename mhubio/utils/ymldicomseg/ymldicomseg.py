@@ -1,6 +1,6 @@
 """
 -------------------------------------------------
-MedicalHub - YMLDicomSeg
+MHub - YMLDicomSeg
 Generate simple and uniform dicomseg json config 
 files from a local database of structures.
 -------------------------------------------------
