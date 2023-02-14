@@ -1,1 +1,5 @@
-# mhubio 
+# mhubio - glue layer modules
+
+The mhubio framework provides several modules for importing, converting, and organizing medical files.
+Since the input and output of ML models can differ greatly in both file system level storage structure and file format (dicom, nifti, nrrd) for the same modality (e.g., CT scan as input, segmentation as output), the modules in this framework allow easy adaptation to a well-defined and standardized I/O framework across multiple models.
+A key concept is that the model pipeline itself does not need to be changed. Instead, conversion and organization modules are used to provide data in the format used to create the model pipeline. Dealing with multiple patients, files, formats, and intermediate steps can quickly overload well-structured code with file system operations, making the code difficult for external readers to understand. Mhubio therefore keeps track of file management internally. The mhubio pipeline is a sequential flow of modules, each of which retrieves and forwards data. Files are then requested not by their relative or absolute path, but by modality and format.
