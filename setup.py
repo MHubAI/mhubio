@@ -22,6 +22,8 @@ setuptools.setup(
     url = "https://github.com/MHubAI/mhubio",
     packages=setuptools.find_packages(),
     long_description=read('README.md'),
+    package_data={'': ['utils/ymldicomseg/data/*.csv']},
+    include_package_data=True,
     classifiers=[
         "Development Status :: 4 - Beta",
         "Topic :: Software Development :: Libraries :: Python Modules",
