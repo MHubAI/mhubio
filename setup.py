@@ -1,5 +1,5 @@
 import os
-from setuptools import setup
+import setuptools
 
 # Utility function to read the README file.
 # Used for the long_description.  It's nice, because now 1) we have a top level
@@ -11,7 +11,7 @@ def read(fname):
 # install locally via `pip install -e .` (-> for development)
 # install from github via `pip install git+https://github.com/MHubAI/mhubio (-> in Dockerfiles)
 
-setup(
+setuptools.setup(
     name = "mhubio",
     version = "0.0.1",
     author = "Leonard Nürnberg",
@@ -20,7 +20,7 @@ setup(
     license = "MIT",
     keywords = "mhub",
     url = "https://github.com/MHubAI/mhubio",
-    #packages=['an_example_pypi_project', 'tests'],
+    packages=setuptools.find_packages(),
     long_description=read('README.md'),
     classifiers=[
         "Development Status :: 4 - Beta",
