@@ -34,6 +34,73 @@ class FileType(Enum):
 
     def __str__(self) -> str:
         return self.name
+    
+
+class DirectoryChain:
+    """Directory chain (DC) is a recursive data structure that represents a path chain. 
+    DC helps implementing a hierarchical data structure by mapping folder structure to semantic context.
+    Given a hierarchical chain like A > B > C > D. If data is added to C, A/B/C is considered the context.
+    
+    Each DC instance has a path set at instantiation. 
+    The instance's absolute path following the hiorarchical structure is provided by the abspath property.
+
+    Although the hierarchical structure should be maintained whenever feasable, it is possible to set an absoluter path at any point in the hierarchical chain, making the instance a so called entrypoint. This can be achieved by one of the folowing options: 
+    - set an absolut path (starting with /) as the DC instance's path
+    - set the instance's base (path will be prefixed with base set base to an empty string to use path directly) 
+    - call the instance's `makeEntrypoint(enforceAbsolutePath: bool = True)` method. 
+
+    If an instance is an entrypoint can be checked by calling the `isEntrypoint()` method.
+    """
+
+    # path: str
+    # base: str 
+    # abspath: str
+
+    def __init__(self, path: str, base: Optional[str] = None, parent: Optional['DirectoryChain'] = None) -> None:
+        self.path: str = path
+        self.base: Optional[str] = base
+        self.parent: Optional[DirectoryChain] = parent
+
+    def setBase(self, base: Optional[str]) -> None:
+        self.base = base
+
+    def setParent(self, parent: Optional['DirectoryChain']) -> None:
+        self.parent = parent
+
+    def setPath(self, path: str) -> None:
+        self.path = path
+
+    def isEntrypoint(self) -> bool:
+        return self.base is not None or self.path[:1] == os.sep
+
+    def makeEntrypoint(self, enforceAbsolutePath: bool = True) -> None:
+        if enforceAbsolutePath:
+            self.setBase("/")
+        else:
+            self.setBase("")
+
+    @property
+    def abspath(self) -> str:
+        if self.base is not None:
+            return os.path.join(self.base, self.path)
+        elif self.parent is not None:
+            return os.path.join(self.parent.abspath, self.path)
+        else:
+            return self.path
+
+
+class DirectoryChainInterface:
+    """Every class part of a hierarchical data structure dealing with representative data should inherit from this class.
+    By inheriting from this class, the class will have a `dc` property that is an instance of DirectoryChain and an `abspath` property that is a shortcut `self.dc.abspath`.
+    """
+
+    def __init__(self, path: str, base: Optional[str] = None, parent: Optional['DirectoryChain'] = None) -> None:
+        self.dc = DirectoryChain(path, base, parent)
+
+    @property
+    def abspath(self) -> str:
+        return self.dc.abspath
+
 
 class Meta:
 
@@ -100,12 +167,14 @@ class Meta:
     def __bool__(self) -> bool:
         return len(self) > 0
 
+
 # define common types
 CT      = Meta("mod", "ct")
 CBCT    = Meta("mod", "cbct")
 MRI     = Meta("mod", "mri")
 XRAY    = Meta("mod", "xray")
 SEG     = Meta("mod", "seg")
+
 
 class DataType:
     def __init__(self, ftype: FileType, meta: Optional[Meta] = None) -> None:
@@ -118,26 +187,28 @@ class DataType:
         s += "]"
         return s
 
-class Instance: 
+
+class Instance(DirectoryChainInterface): 
     # handler:      DataHandler
     # path:         str
     # _data:        List[InstanceData]
     # attr:         Dict[str, str]
 
     def __init__(self, path: str = "") -> None:
-        self.path = path
-        self.handler: Optional['DataHandler'] = None    # TODO: not really optional.
+        super().__init__(path=path, parent=None, base=None)
+        self._handler: Optional['DataHandler'] = None            # NOTE: handler is set delayed but is NOT OPTIONAL !
         self._data: List['InstanceData'] = []
         self.attr: Dict[str, str] = {'id': str(uuid.uuid4())}
 
     @property
-    def abspath(self) -> str:
-        if self.handler is None:
-            # TODO: warning for now, consider failing (use .path instead of .abspath then)
-            print(f"WARNING; Instance has no handler set: {str(self)}.")
-            return self.path 
-        else:
-            return os.path.join(self.handler.base, self.path)
+    def handler(self) -> 'DataHandler':
+        assert self._handler is not None
+        return self._handler
+    
+    @handler.setter
+    def handler(self, handler: 'DataHandler'):
+        self._handler = handler
+        self.dc.setParent(handler.dc)
 
     @property
     def data(self) -> List['InstanceData']:
@@ -155,7 +226,7 @@ class Instance:
     def getDataMetaKeys(self) -> List[str]:
         return list(set(sum([list(d.type.meta.keys()) for d in self.data], [])))
 
-    def printDataOverview(self, datas: Optional[List['InstanceData']] = None, compress: bool = True, label: str = "") -> None:
+    def printDataOverview(self, datas: Optional[List['InstanceData']] = None, meta: bool = False, label: str = "") -> None:
 
         # you may specify data explicitly (e.g. the result of a filter), otherwise we use the instance's data
         if datas is None:
@@ -174,6 +245,10 @@ class Instance:
         for data in datas:
             print(f"├── {chead}{str(data.type.ftype)}{cend} [{data.abspath}]")
 
+            # print meta    
+            if meta:
+                for k, v in data.type.meta.items():
+                    print(f"│   ├── {cyan}{k}: {v}{cend}")
 
     def printDataMetaOverview(self, datas: Optional[List['InstanceData']] = None, compress: bool = True, label: str = "") -> None:
 
@@ -292,27 +367,60 @@ class Instance:
 
     def __str__(self) -> str:
         return "<I:%s>"%(self.abspath)
+    
+    def getDataBundle(self, ref: str) -> 'InstanceDataBundle':
+        return InstanceDataBundle(ref=ref, instance=self)
 
-class InstanceData:
+
+class InstanceDataBundle(DirectoryChainInterface):
+    def __init__(self, ref: str, instance: Instance, bundle: Optional['InstanceDataBundle'] = None):
+        self.instance: Instance = instance
+        self._bundle: Optional[InstanceDataBundle] = bundle
+
+        parent = self.instance if not self._bundle else self._bundle
+        super().__init__(path=ref, base=None, parent=parent.dc)
+
+    def addData(self, data: 'InstanceData') -> None:
+        self.instance.addData(data)
+        data.bundle = self
+
+
+class InstanceData(DirectoryChainInterface):
     # instance:     Instance
     # type:         DataType
     # path:         str
     # base:         str
     
     def __init__(self, path: str, type: DataType) -> None:
-        self.instance: Optional[Instance] = None
-        self.path: str = path
+        self._instance: Optional[Instance] = None
+        self._bundle: Optional[InstanceDataBundle] = None
         self.type: DataType = type
-        self.base: Optional[str] = None
+        super().__init__(path=path, base=None, parent=None)
 
     @property
-    def abspath(self) -> str:
-        if self.base is not None:
-            return os.path.join(self.base, self.path)
-        else:
-            assert self.instance is not None
-            return os.path.join(self.instance.abspath, self.path)
+    def instance(self) -> Instance:
+        assert self._instance is not None
+        return self._instance
+    
+    @instance.setter
+    def instance(self, instance: Instance) -> None:
+        self._instance = instance
 
+        if self._bundle is None:
+            self.dc.setParent(instance.dc)
+
+    @property
+    def bundle(self) -> Optional[InstanceDataBundle]:
+        return self._bundle
+    
+    @bundle.setter
+    def bundle(self, bundle: InstanceDataBundle) -> None:
+        self._bundle = bundle
+        self.dc.setParent(bundle.dc)
+
+    def getDataBundle(self, ref: str) -> InstanceDataBundle:
+        return InstanceDataBundle(ref=ref, instance=self.instance, bundle=self.bundle)
+    
     def __str__(self) -> str:
         srtd = "sorted" if isinstance(self.instance, SortedInstance) else "unsorted"
         return "<D:%s:%s:%s>"%(self.abspath, srtd, self.type)
@@ -322,19 +430,24 @@ class UnsortedInstance(Instance):
     def __init__(self, path: str = "") -> None:
         super().__init__(path)
 
+
 class SortedInstance(Instance):
     def __init__(self, path: str = "") -> None:
         super().__init__(path)
 
-class DataHandler:
+
+class DataHandler(DirectoryChainInterface):
     # base:         str
     # _instances:   List[Instance]
     # _tmpdirs:     Dict[str, str]
 
-    def __init__(self, base) -> None:
-        self.base: str = base
+    def __init__(self, base: str) -> None:
         self._instances: List[Instance] = []
         self._tmpdirs: Dict[str, List[str]] = {}
+
+        super().__init__(path=base, base=None, parent=None)
+        self.dc.makeEntrypoint()
+        assert self.dc.isEntrypoint()
 
     @property
     def instances(self) -> List[Instance]:
@@ -370,13 +483,15 @@ class DataHandler:
         # return
         return path
 
-    def printInstancesOverview(self, level: str = "all"):
-        assert level in ["data", "meta", "all"]
+    def printInstancesOverview(self, level: str = "data+meta"):
+        assert level in ["data", "meta", "data+meta"]
         for instance in self.instances:
-            if level == "data" or level == "all":
-                instance.printDataOverview()
-            if level == "meta" or level == "all":
+            if level == "data":
+                instance.printDataOverview(meta=False)
+            elif level == "meta":
                 instance.printDataMetaOverview()
+            elif level == "data+meta":
+                instance.printDataOverview(meta=True)
 
 class Config:
     # data: DataHandler
@@ -428,6 +543,7 @@ class Config:
 
     # TODO: check mode on all! os.makedirs operations (os.makedirs(name=d, mode=0o777))
         
+
 class Module:
     # label:    str
     # config:   Config
@@ -467,6 +583,7 @@ class Module:
         """
         print("Ooops, no task implemented in base module.")
         pass
+
 
 class Sequence(Module):
     """

@@ -129,5 +129,5 @@ class NNUnetRunner(ModelRunner):
         
         # add output data to instance
         data = InstanceData(out_path, DataType(FileType.NIFTI, SEG + meta))
-        data.base = "" # required since path is external (will be fixed soon)
+        data.dc.makeEntrypoint()
         instance.addData(data)

@@ -50,7 +50,7 @@ class DataOrganizer(Module):
                     if var == "random":
                         _target = _target.replace('[random]', str(uuid.uuid4()))
                     elif var == "path":
-                        _target = _target.replace("[path]", data.path)
+                        _target = _target.replace("[path]", data.dc.path)
                 elif scope == "i:" and data.instance is not None:
                     if not var in data.instance.attr:
                         print(f"WARNING: attribute '{var}' missing in instance {data.instance}. Case ignored.")
@@ -96,7 +96,7 @@ class DataOrganizer(Module):
                 # add to instance
                 # TODO: the data is now outside of our managed file structure but should still be linked to the instance. For now, just set the base path. However, this will cause type duplications thus not yet compatible with conversion modules applied afterwards. However, we've to decide if we enforce all conversion steps to only operate on our internal data structure.
                 out_data = InstanceData(inp_data_target, type)
-                out_data.base = ""
+                out_data.dc.makeEntrypoint()
                 instance.addData(out_data) # TODO: either remove dry mode or handle 
 
                 # copy

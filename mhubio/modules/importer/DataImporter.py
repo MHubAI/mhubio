@@ -30,7 +30,7 @@ class IDEF:
 class DataImporter(Module):
     """
     Importer base moule and Instance generator class.
-    An importer shoul always be the first module of any module chain.
+    An importer must always be the first module of any module chain.
     """
 
     def __init__(self, config: Config) -> None:
@@ -43,7 +43,7 @@ class DataImporter(Module):
         self.basePath = path
 
     def _resolvePath(self, path, ref: Optional[str] = None):
-        plst = [self.config.data.base]
+        plst = [self.config.data.abspath]
         if self.basePath: plst.append(self.basePath)
         if ref: plst.append(ref)
         plst.append(path)
