@@ -11,7 +11,8 @@ Email:  leonard.nuernberg@maastrichtuniversity.nl
 
 from typing import Dict, Optional
 import os, shutil, uuid, re
-from mhubio.core import Config, Module, Instance, InstanceData, DataType, FileType
+from mhubio.core import Config, Module, Instance, InstanceData, DataType, FileType, Meta
+
 
 class DataOrganizer(Module):
     target: Dict[DataType, str] = {}
@@ -20,6 +21,62 @@ class DataOrganizer(Module):
         super().__init__(config)
         self.dry = dry_run
         self.set_file_permissions = set_file_permissions
+
+        # import targets from config if defined
+        self._importTargetsFromConfig()
+
+    def _importTargetsFromConfig(self) -> None:
+        """
+        conversion example [code implementation / config dictionary]  
+        restricted characters: [':', '=', '-->']
+
+        organizer.setTarget(DataType(FileType.NIFTI, CT), "/app/data/output_data/[i:SeriesID]/[path]")
+        organizer.setTarget(DataType(FileType.DICOMSEG, SEG), "/app/data/output_data/[i:SeriesID]/TotalSegmentator.seg.dcm")
+
+        {
+          "modules": {
+              "DataOrganizer": {
+                  "targets": [
+                      "NIFTI:mod=ct-->/app/data/output_data/[i:SeriesID]/[path]",   
+                      "DICOMSEG:mod=seg-->/app/data/output_data/[i:SeriesID]/TotalSegmentator.seg.dcm"
+                  ]
+             }
+        }
+        """
+
+        # automatically import targets from config if defined
+        targets = self.getConfiguration("targets")
+        if targets and isinstance(targets, list):
+            for target_definition in self.c["targets"]:
+                try:
+                    assert isinstance(target_definition, str), f"Definition must be a string, not {type(target_definition)}."
+                    
+                    # extract source and target
+                    src_def, tar_def = target_definition.split("-->")
+
+                    # extract file type and meta key value paris
+                    ftype_def, *meta_def = src_def.split(":")
+
+                    # get file type
+                    assert ftype_def in FileType.__members__, f"{ftype_def} not a valid file type."
+                    ftype = FileType[ftype_def]
+
+                    # assemple meta dictionary
+                    meta_dict: Dict[str, str] = {}
+                    for kvp in meta_def:
+                        key, value = kvp.split("=")
+                        meta_dict[key] = value
+
+                    # convert to meta instance
+                    meta = Meta() + meta_dict
+
+                    # create data type instance
+                    data_type = DataType(ftype, meta)
+
+                    # set target 
+                    self.setTarget(data_type, tar_def)
+                except Exception as e:
+                    print(f"WARNING: could not parse target definition '{target_definition}: {str(e)}'")
 
     def setTarget(self, type: DataType, dir: str) -> None: # TODO: define copy / move action
         """

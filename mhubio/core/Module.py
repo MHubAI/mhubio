@@ -29,6 +29,12 @@ class Module:
     @property 
     def c(self) -> Any:
         return self.config[self.__class__]
+    
+    def getConfiguration(self, key: str, default: Any = None) -> Any:
+        try:
+            return self.c[key]
+        except:
+            return default
 
     def v(self, *args) -> None:
         if self.verbose:

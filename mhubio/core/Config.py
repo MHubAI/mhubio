@@ -27,7 +27,7 @@ def config_argument_parser(args: List[str], allow_json_type_parsing: bool = True
     config: dict = {}
     for arg in args:
         if arg.startswith('--config:'):
-            keypath, value = arg[9:].split('=')
+            keypath, value = arg[9:].split('=', maxsplit=1)
 
             _config = config
             edges = keypath.split('#')
