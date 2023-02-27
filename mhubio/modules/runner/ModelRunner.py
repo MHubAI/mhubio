@@ -22,7 +22,11 @@ class ModelRunner(Module):
 
     def task(self) -> None:
         for instance in self.config.data.instances:
-            self.runModel(instance)
+            try:
+                self.runModel(instance)
+            except Exception as e:
+                # TODO: add global logging
+                self.v("Error while running model for instance " + str(instance) + ": " + str(e))
 
     def runModel(self, instance: Instance) -> None:
         pass
