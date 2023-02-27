@@ -13,7 +13,7 @@ import os
 import subprocess
 import shutil
 
-from mhubio.Config import Config, UnsortedInstance, SortedInstance, InstanceData, DataType, FileType, CT, DirectoryChain
+from mhubio.core import Config, UnsortedInstance, SortedInstance, InstanceData, DataType, FileType, CT, DirectoryChain
 from mhubio.modules.importer.DataImporter import DataImporter
 
 class DataSorter(DataImporter):

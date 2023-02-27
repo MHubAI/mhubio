@@ -10,7 +10,7 @@ Email:  leonard.nuernberg@maastrichtuniversity.nl
 """
 
 from typing import List
-from mhubio.Config import Module, Instance, DataType, FileType
+from mhubio.core import Module, Instance, DataType, FileType
 
 class DataFilter(Module):
     """

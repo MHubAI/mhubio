@@ -2,7 +2,7 @@
 from typing import Optional
 import os, subprocess, re, shutil
 
-from mhubio.Config import Config, Instance, InstanceData, DataType, FileType, CT, SEG
+from mhubio.core import Config, Instance, InstanceData, DataType, FileType, CT, SEG
 from mhubio.modules.runner.ModelRunner import ModelRunner
 
 

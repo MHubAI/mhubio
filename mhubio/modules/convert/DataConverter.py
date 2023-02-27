@@ -10,7 +10,7 @@ Email:  leonard.nuernberg@maastrichtuniversity.nl
 """
 
 from typing import Optional, List
-from mhubio.Config import Module, Instance, InstanceData, DataType, FileType
+from mhubio.core import Module, Instance, InstanceData
 
 class DataConverter(Module):
     """

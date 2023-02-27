@@ -11,7 +11,7 @@ Email:  leonard.nuernberg@maastrichtuniversity.nl
 
 from typing import Optional
 
-from mhubio.Config import Instance, InstanceData, DataType, FileType, Meta, SEG
+from mhubio.core import Instance, InstanceData, DataType, FileType, Meta, SEG
 from .DataConverter import DataConverter
 from mhubio.utils.ymldicomseg import exportJsonMeta, removeTempfile
 

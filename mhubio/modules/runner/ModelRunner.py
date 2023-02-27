@@ -11,7 +11,7 @@ Email:  leonard.nuernberg@maastrichtuniversity.nl
 
 from typing import List
 import os, subprocess
-from mhubio.Config import Module, Instance, InstanceData, DataType, FileType, Meta, SEG
+from mhubio.core import Module, Instance
 
 
 class ModelRunner(Module):

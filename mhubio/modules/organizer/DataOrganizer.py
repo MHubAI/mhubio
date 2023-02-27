@@ -11,7 +11,7 @@ Email:  leonard.nuernberg@maastrichtuniversity.nl
 
 from typing import Dict, Optional
 import os, shutil, uuid, re
-from mhubio.Config import Config, Module, Instance, InstanceData, DataType, FileType
+from mhubio.core import Config, Module, Instance, InstanceData, DataType, FileType
 
 class DataOrganizer(Module):
     target: Dict[DataType, str] = {}
@@ -39,7 +39,7 @@ class DataOrganizer(Module):
             self.organize(instance)
 
     def resolveTarget(self, target: str, data: InstanceData) -> Optional[str]:
-        vars = re.findall("\[(i:|d:)?([\w]+)\]", target)
+        vars = re.findall(r"\[(i:|d:)?([\w]+)\]", target)
 
         if len(vars) == 0:
             return target

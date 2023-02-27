@@ -13,7 +13,7 @@ Email:  leonard.nuernberg@maastrichtuniversity.nl
 from typing import Optional
 
 from .DataConverter import DataConverter
-from mhubio.Config import Instance, InstanceData, DataType, FileType
+from mhubio.core import Instance, InstanceData, DataType, FileType
 
 import os
 import pyplastimatch as pypla # type: ignore

@@ -11,7 +11,7 @@ Email:  leonard.nuernberg@maastrichtuniversity.nl
 
 from typing import Optional
 
-from mhubio.Config import Config, UnsortedInstance
+from mhubio.core import Config, UnsortedInstance
 from mhubio.modules.importer.DataImporter import DataImporter
 
 class UnsortedInstanceImporter(DataImporter):

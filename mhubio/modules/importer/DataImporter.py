@@ -9,9 +9,9 @@ Email:  leonard.nuernberg@maastrichtuniversity.nl
 -------------------------------------------------
 """
 
-from typing import List, Dict, Union, Optional, Tuple
-from mhubio.Config import Config, Module, Instance, InstanceData, DataType, FileType, Meta, CT, MRI, CBCT, XRAY, SEG
-import os, uuid
+from typing import List, Dict, Optional, Tuple
+from mhubio.core import Config, Module, Instance, InstanceData, DataType, FileType, Meta, CT
+import os
 
 class IDEF:
     """ Instance definition.

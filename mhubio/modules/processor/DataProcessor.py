@@ -9,7 +9,7 @@ Email:  leonard.nuernberg@maastrichtuniversity.nl
 -------------------------------------------------
 """
 
-from mhubio.Config import Instance
+from mhubio.core import Instance
 from mhubio.modules.convert.DataConverter import DataConverter
 
 class DataProcessor(DataConverter):

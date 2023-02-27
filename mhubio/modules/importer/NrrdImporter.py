@@ -1,6 +1,14 @@
-import os
+"""
+-------------------------------------------------
+MHub - Special NRRD importer for 3D Slicer plugin
+-------------------------------------------------
 
-from mhubio.Config import UnsortedInstance, InstanceData, DataType, FileType, CT
+-------------------------------------------------
+Author: Leonard Nürnberg
+Email:  leonard.nuernberg@maastrichtuniversity.nl
+-------------------------------------------------
+"""
+
 from mhubio.modules.importer.DataImporter import DataImporter
 
 class NrrdImporter(DataImporter):
