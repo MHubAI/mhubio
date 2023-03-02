@@ -68,6 +68,13 @@ class Config:
         self.verbose = True
         self.debug = False
 
+        # cli overwrite config file
+        if '--config' in sys.argv:
+            if ci := sys.argv.index('--config') < len(sys.argv) - 1:
+                if os.path.isfile(sys.argv[ci + 1]):
+                    config_file = sys.argv[ci + 1]
+                    print(f"Config file overwritten by cli argument: {config_file}")
+
         # TODO: define minimal base config and auto-load. 
         # How do we 'define' mandatory fields? assert them?
         if config_file is not None and os.path.isfile(config_file):
