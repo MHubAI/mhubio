@@ -8,7 +8,6 @@ Author: Leonard Nürnberg (27.02.2023)
 Email:  leonard.nuernberg@maastrichtuniversity.nl
 -------------------------------------------------
 """
-
 from typing import Union, Optional, Dict, List, Tuple
 
 class Meta:
@@ -75,3 +74,6 @@ class Meta:
 
     def __bool__(self) -> bool:
         return len(self) > 0
+    
+    def __dict__(self):
+        return self.mdict

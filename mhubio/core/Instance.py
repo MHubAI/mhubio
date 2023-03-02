@@ -69,7 +69,9 @@ class Instance(DirectoryChainInterface):
         fnormal ='\x1B[0m'
 
         # print fromatted output
-        print(f". {fitalics}{label}{fnormal} [{self.abspath}]")
+        print(f". Instance {fitalics}{label}{fnormal} [{self.abspath}]")
+        for k, v in self.attr.items():
+            print(f"├── {cyan}{k}: {v}{cend}")
         for data in datas:
             print(f"├── {chead}{str(data.type.ftype)}{cend} [{data.abspath}]")
 
