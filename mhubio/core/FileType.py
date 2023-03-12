@@ -20,6 +20,7 @@ class FileType(Enum):
     RTSTRUCT    = "rtstruct"
     CSV         = "csv"
     TXT         = "txt"
+    LOG         = "log"
     JSON        = "json"
 
     def __str__(self) -> str:
