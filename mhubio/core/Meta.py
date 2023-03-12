@@ -12,8 +12,11 @@ from typing import Union, Optional, Dict, List, Tuple
 
 class Meta:
 
-    def __init__(self, key: Optional[str] = None, value: Optional[str] = None) -> None:
-        self.mdict: Dict[str, str] = {key: value} if key and value else {}
+    #def __init__(self, key: Optional[str] = None, value: Optional[str] = None) -> None:
+    #    self.mdict: Dict[str, str] = {key: value} if key and value else {}
+
+    def __init__(self, **kwargs: str) -> None:
+        self.mdict: Dict[str, str] = kwargs if kwargs else {}
 
     def ext(self, meta: Union[Dict[str, str], List['Meta'], 'Meta']) -> 'Meta':
         if isinstance(meta, dict):
