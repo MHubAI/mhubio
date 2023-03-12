@@ -86,7 +86,7 @@ class UniversalImporter(Module):
             if not s['dtype'] == 'bundle':
                 continue
 
-            path = s['path']
+            path = str(s['path'])
             meta = s['meta']
             bundle_id = str(s['bundle'])
 
@@ -107,7 +107,7 @@ class UniversalImporter(Module):
             instance = instances[ref]
 
             # create bundle
-            bundle = instance.getDataBundle(bundle_id)
+            bundle = instance.getDataBundle(path)
             bundles[bundle_id] = bundle
 
         # import data
