@@ -54,24 +54,8 @@ class DataOrganizer(Module):
                     # extract source and target
                     src_def, tar_def = target_definition.split("-->")
 
-                    # extract file type and meta key value paris
-                    ftype_def, *meta_def = src_def.split(":")
-
-                    # get file type
-                    assert ftype_def in FileType.__members__, f"{ftype_def} not a valid file type."
-                    ftype = FileType[ftype_def]
-
-                    # assemple meta dictionary
-                    meta_dict: Dict[str, str] = {}
-                    for kvp in meta_def:
-                        key, value = kvp.split("=")
-                        meta_dict[key] = value
-
-                    # convert to meta instance
-                    meta = Meta() + meta_dict
-
                     # create data type instance
-                    data_type = DataType(ftype, meta)
+                    data_type = DataType.fromString(src_def)
 
                     # set target 
                     self.setTarget(data_type, tar_def)
