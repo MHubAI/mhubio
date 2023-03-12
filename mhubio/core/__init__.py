@@ -9,3 +9,4 @@ from .InstanceDataBundle import InstanceDataBundle
 from .Meta import Meta
 from .Module import Module
 from .templates import *
+from .InstanceDataCollection import InstanceDataCollection
