@@ -193,7 +193,11 @@ class Instance(DirectoryChainInterface):
     # e.g. add , salvo: bool = False to addData signature
     def addData(self, data: 'InstanceData') -> None:
         data.instance = self
-        self._data.append(data)
+        
+        if data not in self._data:
+            self._data.append(data)
+        else:
+            print("WARNING: data was already added to instance.")
 
     def __str__(self) -> str:
         return "<I:%s>"%(self.abspath)
