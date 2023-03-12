@@ -9,14 +9,22 @@ Email:  leonard.nuernberg@maastrichtuniversity.nl
 -------------------------------------------------
 """
 
-from typing import Optional
+from typing import Optional, Union, Dict
 from .FileType import FileType
 from .Meta import Meta
 
 class DataType:
-    def __init__(self, ftype: FileType, meta: Optional[Meta] = None) -> None:
+    def __init__(self, ftype: FileType, meta: Optional[Union[Meta, Dict[str, str]]] = None) -> None:
         self.ftype: FileType = ftype
-        self.meta: Meta = meta if meta else Meta()
+
+        if meta is None:
+            self.meta: Meta = Meta()
+        elif isinstance(meta, Meta):
+            self.meta: Meta = meta
+        elif isinstance(meta, dict):
+            self.meta: Meta = Meta() + meta
+        else:
+            raise TypeError("Second argument of DataType must be of type Meta or Dict[str, str]")
 
     def __str__(self) -> str:
         s: str = "[T:" + str(self.ftype)
