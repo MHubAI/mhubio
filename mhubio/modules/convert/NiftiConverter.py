@@ -10,13 +10,18 @@ Email:  leonard.nuernberg@maastrichtuniversity.nl
 """
 
 
+from enum import Enum
 from typing import Optional
 
 from .DataConverter import DataConverter
 from mhubio.core import Instance, InstanceData, DataType, FileType
 
-import os
+import os, subprocess
 import pyplastimatch as pypla # type: ignore
+
+class NiftiConverterEngine(Enum):
+    PLASTIMATCH = 'plastimatch'
+    DCM2NIIX     = 'dcm2niix'
 
 class NiftiConverter(DataConverter):
     """
@@ -24,7 +29,21 @@ class NiftiConverter(DataConverter):
     Convert instance data from dicom or nrrd to nifti.
     """
 
-    def dicom2nifti(self, instance: Instance) -> Optional[InstanceData]:
+    @property
+    def engine(self) -> NiftiConverterEngine:
+        if not hasattr(self, '_engine') or self._engine is None: # type: ignore
+            if 'engine' in self.c and self.c['engine'].upper() in NiftiConverterEngine.__members__:
+                return NiftiConverterEngine[self.c['engine'].upper()]
+            else:
+                return NiftiConverterEngine.PLASTIMATCH
+        else:
+            return self._engine # type: ignore
+
+    @engine.setter
+    def engine(self, engine: NiftiConverterEngine) -> None:
+        self._engine = engine
+
+    def dicom2nifti_plastimatch(self, instance: Instance) -> Optional[InstanceData]:
         
         # cretae a converted instance
         assert instance.hasType(DataType(FileType.DICOM)), f"CONVERT ERROR: required datatype (dicom) not available in instance {str(instance)}."
@@ -34,10 +53,17 @@ class NiftiConverter(DataConverter):
         nifti_data = InstanceData("image.nii.gz", DataType(FileType.NIFTI, dicom_data.type.meta))
         nifti_data.instance = instance
 
+        # log data
+        log_data = InstanceData("_pypla.log", DataType(FileType.LOG, {
+            "origin" : "plastimatch",
+            "caller" : "NiftiConverter.dicom2nifti",
+            "instance" : str(instance)
+        }), instance)
+
         # paths
         inp_dicom_dir = dicom_data.abspath
         out_nifti_file = nifti_data.abspath
-        out_log_file = os.path.join(instance.abspath, "_pypla.log")
+        out_log_file = log_data.abspath
 
         # sanity check
         assert(os.path.isdir(inp_dicom_dir))
@@ -52,7 +78,7 @@ class NiftiConverter(DataConverter):
                 "output-img" : out_nifti_file
             }
 
-            # clean old log file if it exist
+            # remove old log file if it exist
             if os.path.isfile(out_log_file): 
                 os.remove(out_log_file)
             
@@ -65,9 +91,60 @@ class NiftiConverter(DataConverter):
 
             return nifti_data
     
+    def dicom2nifti_dcm2nii(self, instance: Instance) -> Optional[InstanceData]:
+
+        assert instance.hasType(DataType(FileType.DICOM)), f"CONVERT ERROR: required datatype (dicom) not available in instance {str(instance)}."
+        dicom_data = instance.getData(DataType(FileType.DICOM))
+
+        # out data
+        nifti_data = InstanceData("image.nii.gz", DataType(FileType.NIFTI, dicom_data.type.meta))
+        nifti_data.instance = instance
+
+        # paths
+        inp_dicom_dir = dicom_data.abspath
+        out_nifti_file = nifti_data.abspath
+
+        # sanity check
+        assert(os.path.isdir(inp_dicom_dir))
+
+        # DICOM CT to NRRD conversion (if the file doesn't exist yet)
+        # TODO: how do we handle existing files? 
+        #       In theory, they should not exyist (we're in a not mounted folder inside Docker container...) 
+        if os.path.isfile(out_nifti_file):
+            print("CONVERT ERROR: File already exists: ", out_nifti_file)
+            return None
+        else:
+
+            # verbosity level
+            # TODO: once global verbosity levels are implemented, propagate them here
+            if self.config.debug: 
+                verbosity = 2
+            elif self.config.verbose: 
+                verbosity = 1
+            else:
+                verbosity = 0
+
+            # build command
+            # manual: https://www.nitrc.org/plugins/mwiki/index.php/dcm2nii:MainPage#General_Usage
+            bash_command  = ["dcm2niix"]
+            bash_command += ["-o", os.path.dirname(out_nifti_file)]         # output folder
+            bash_command += ["-f", os.path.basename(out_nifti_file)[:-7]]   # output file name (pattern, but we handle a single dicom series as input)
+            bash_command += ["-v", str(verbosity)]                          # verbosity
+            bash_command += ["-z", "y"]                                     # output compression      
+            bash_command += ["-b", "n"]                                     # do not generate a Brain Imaging Data Structure file      
+            bash_command += [inp_dicom_dir]                                 # input folder (dicom) 
+
+            # print run
+            # TODO: implement global verbosity levels. This is required for debugging and has educational value.
+            self.v(">> run: ", " ".join(bash_command))
+
+            # execute command
+            _ = subprocess.run(bash_command, check = True, text = True)
+
+            return nifti_data
+
     def nrrd2nifti(self, instance: Instance) -> Optional[InstanceData]:
          
-        # cretae a converted instance
         assert instance.hasType(DataType(FileType.NRRD)), f"CONVERT ERROR: required datatype (nrrd) not available in instance {str(instance)}."
         nrrd_data = instance.getData(DataType(FileType.NRRD))
 
@@ -112,8 +189,14 @@ class NiftiConverter(DataConverter):
         hasNrrd = instance.hasType(DataType(FileType.NRRD))
 
         if hasDicom:
-            return self.dicom2nifti(instance)
+            if self.engine == NiftiConverterEngine.PLASTIMATCH:
+                return self.dicom2nifti_plastimatch(instance)
+            elif self.engine == NiftiConverterEngine.DCM2NIIX:
+                return self.dicom2nifti_dcm2nii(instance)
+            else:
+                raise ValueError(f"CONVERT ERROR: unknown engine {self.engine}.")
         elif hasNrrd:
             return self.nrrd2nifti(instance)
         else:
             raise TypeError(f"CONVERT ERROR: required datatype (dicom or nrrd) not available in instance {str(instance)}.")
+        
