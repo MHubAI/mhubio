@@ -21,32 +21,6 @@ class InstanceDataCollection:
         self._data: List[InstanceData] = data
   
     @staticmethod
-    def convertStringToDataType(s: str) -> DataType:
-        """
-        Convert data in form $file_type:$meta_key1=$meta_value1:$meta_key2=$meta_value2 to DataType instance.
-        Example: DICOMSEG:mod=seg -> DataType(FileType.DICOMSEG, Meta(mod, seg))
-        """
-
-        # extract file type and meta key value paris
-        ftype_def, *meta_def = s.split(":")
-
-        # get file type
-        assert ftype_def in FileType.__members__, f"{ftype_def} not a valid file type."
-        ftype = FileType[ftype_def]
-
-        # assemple meta dictionary
-        meta_dict: Dict[str, str] = {}
-        for kvp in meta_def:
-            key, value = kvp.split("=")
-            meta_dict[key] = value
-
-        # convert to meta instance
-        meta = Meta() + meta_dict
-
-        # create data type instance
-        return DataType(ftype, meta)
-
-    @staticmethod
     def filterByDataType(pool: List['InstanceData'], ref_type: DataType) -> List['InstanceData']: 
         """
         Filter for instance data by a reference data type. Only instance data that match the file type and specified meta data of the reference type are returned. A datatype matches the reference type, if all metadata of the reference type is equal to the datatype. If a datatype contains additional meta data compared to the reference type (specialization) those additional keys are ignored. 
@@ -73,7 +47,7 @@ class InstanceDataCollection:
     
     @staticmethod
     def filterByString(pool: List['InstanceData'], ref_type: str) -> List['InstanceData']:
-        return InstanceDataCollection.filterByDataType(pool, InstanceDataCollection.convertStringToDataType(ref_type))
+        return InstanceDataCollection.filterByDataType(pool, DataType.fromString(ref_type))
 
     def filter(self, ref_types: Union[DataType, str, List[DataType], List[str]]) -> 'InstanceDataCollection':
         if isinstance(ref_types, str):
@@ -82,7 +56,7 @@ class InstanceDataCollection:
             ref_types = [ref_types]
         
         # convert string representations to DataType instances
-        ref_types = [InstanceDataCollection.convertStringToDataType(ref_type) if isinstance(ref_type, str) else ref_type for ref_type in ref_types]
+        ref_types = [DataType.fromString(ref_type) if isinstance(ref_type, str) else ref_type for ref_type in ref_types]
 
         # filter by data type
         return InstanceDataCollection(list(set(sum([InstanceDataCollection.filterByDataType(self._data, ref_type) for ref_type in ref_types], []))))

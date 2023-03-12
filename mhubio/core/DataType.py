@@ -26,6 +26,32 @@ class DataType:
         else:
             raise TypeError("Second argument of DataType must be of type Meta or Dict[str, str]")
 
+    @staticmethod
+    def fromString(s: str) -> 'DataType':
+        """
+        Convert data in form $file_type:$meta_key1=$meta_value1:$meta_key2=$meta_value2 to DataType instance.
+        Example: DICOMSEG:mod=seg -> DataType(FileType.DICOMSEG, Meta(mod, seg))
+        """
+
+        # extract file type and meta key value paris
+        ftype_def, *meta_def = s.split(":")
+
+        # get file type
+        assert ftype_def in FileType.__members__, f"{ftype_def} not a valid file type."
+        ftype = FileType[ftype_def]
+
+        # assemple meta dictionary
+        meta_dict: Dict[str, str] = {}
+        for kvp in meta_def:
+            key, value = kvp.split("=")
+            meta_dict[key] = value
+
+        # convert to meta instance
+        meta = Meta() + meta_dict
+
+        # create data type instance
+        return DataType(ftype, meta)
+
     def __str__(self) -> str:
         s: str = "[T:" + str(self.ftype)
         if self.meta: s += ":" + str(self.meta)
