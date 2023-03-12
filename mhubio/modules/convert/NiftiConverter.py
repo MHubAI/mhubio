@@ -32,10 +32,8 @@ class NiftiConverter(DataConverter):
     @property
     def engine(self) -> NiftiConverterEngine:
         if not hasattr(self, '_engine') or self._engine is None: # type: ignore
-            if 'engine' in self.c and self.c['engine'].upper() in NiftiConverterEngine.__members__:
-                return NiftiConverterEngine[self.c['engine'].upper()]
-            else:
-                return NiftiConverterEngine.PLASTIMATCH
+            engine_from_config = self.getConfiguration('engine', 'plastimatch')
+            return NiftiConverterEngine[engine_from_config.upper()]
         else:
             return self._engine # type: ignore
 
