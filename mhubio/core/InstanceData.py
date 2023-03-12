@@ -19,11 +19,15 @@ class InstanceData(DirectoryChainInterface):
     # path:         str
     # base:         str
     
-    def __init__(self, path: str, type: DataType) -> None:
+    def __init__(self, path: str, type: DataType, instance: Optional['Instance'] = None) -> None:
+        super().__init__(path=path, base=None, parent=None)
         self._instance: Optional[Instance] = None
         self._bundle: Optional[InstanceDataBundle] = None
         self.type: DataType = type
-        super().__init__(path=path, base=None, parent=None)
+
+        if instance is not None and isinstance(instance, Instance):
+            #self.instance = instance    # A: d-->i link only 
+            instance.addData(self)       # B: d<->i dual link 
 
     @property
     def instance(self) -> 'Instance':
