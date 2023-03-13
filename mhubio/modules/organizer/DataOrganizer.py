@@ -80,7 +80,7 @@ class DataOrganizer(Module):
             self.organize(instance)
 
     def resolveTarget(self, target: str, data: InstanceData) -> Optional[str]:
-        vars = re.findall(r"\[(i:|d:)?([\w]+)\]", target)
+        vars = re.findall(r"\[(i:|d:)?([\w\_\-]+)\]", target)
 
         if len(vars) == 0:
             return target
@@ -122,6 +122,10 @@ class DataOrganizer(Module):
             # get input file path
             inp_datas = instance.filterData(type)
             for inp_data in inp_datas:
+
+                # accept only confirmed data
+                if not inp_data.confirmed:
+                    continue
 
                 inp_data_target = self.resolveTarget(target, inp_data)
                 if not inp_data_target:

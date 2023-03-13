@@ -98,14 +98,12 @@ class NiftiConverter(DataConverter):
     def plastimatch(self, instance: Instance, in_data: InstanceData, out_data: InstanceData, bundle: Optional[InstanceDataBundle] = None) -> None:
 
         # log data
-        log_data = InstanceData("_pypla.log", DataType(FileType.LOG, {
-            "origin" : "plastimatch",
-            "caller" : "NiftiConverter.dicom2nifti",
-            "instance" : str(instance)
-        }), instance)
-
-        if bundle:
-            bundle.addData(log_data)
+        log_data = InstanceData("_pypla.log", DataType(FileType.LOG, in_data.type.meta + {
+            "log-origin": "plastimatch",
+            "log-task": "conversion",
+            "log-caller": "NiftiConverter.dicom2nifti",
+            "log-instance": str(instance)
+        }), instance, bundle, auto_increment=True)
 
         # set input and output paths later passed to plastimatch
         convert_args_ct = {
@@ -123,6 +121,9 @@ class NiftiConverter(DataConverter):
             path_to_log_file=log_data.abspath,
             **convert_args_ct
         )
+
+        if os.path.isfile(log_data.abspath):
+            log_data.confirm()
 
     def dcm2nii(self, instance: Instance, in_data: InstanceData, out_data: InstanceData) -> None:
 
@@ -160,8 +161,8 @@ class NiftiConverter(DataConverter):
     def convert(self, instance: Instance) -> None:
 
         # define output semantics
-        converted_file_name: str = self.getConfiguration('converted_file_name', 'image.nii.gz')
-        bundle_name: Optional[str] = self.getConfiguration('bundle_name', None)   # will be set as bundle ref
+        converted_file_name: str = self.getConfiguration('converted_file_name', 'image.nii.gz') # file name of the converted file
+        bundle_name: Optional[str] = self.getConfiguration('bundle_name', None)                 # will be set as bundle ref
 
         # experimental
         if bundle_name is not None:
@@ -176,7 +177,7 @@ class NiftiConverter(DataConverter):
         # fetch target data from instance (use default targets if nothing else specified)
         targets = self._targets if len(self._targets) > 0 else default_targets
 
-        # debug  
+        # debug  (print targets used for conversion)
         # print("--->", len(targets), str([str(dt) for dt in targets]))
 
         # filter instance for data
@@ -196,19 +197,21 @@ class NiftiConverter(DataConverter):
         # conversion step
         for in_data in in_datas:
 
+            # specify bundle 
+            #  if input data is part of a bundle (in_data.bundle != None), this bundle will be used as our base bunde
+            #  if additionally a bundle_name is specified, a new bundle will be created based on the base bundle or instance if no base bundle exists.
+            #  all data will be added to the here specified bundle or if no bundle is specified, to the instance.
+            bundle: Optional[InstanceDataBundle] = in_data.bundle
+            if bundle_name is not None:
+                bundle = in_data.getDataBundle(bundle_name)         # NOTE: if in_data has a bundle, this will automatically expand on that bundle
+
             # get output data
-            out_data = InstanceData(converted_file_name, DataType(FileType.NIFTI, in_data.type.meta))
-            out_data.instance = instance
+            out_data = InstanceData(converted_file_name, DataType(FileType.NIFTI, in_data.type.meta), instance, bundle)
 
             # check if output data already exists
             if os.path.isfile(out_data.abspath) and not self.getConfiguration('overwrite_existing_file', False):
                 print("CONVERT ERROR: File already exists: ", out_data.abspath)
                 continue
-
-            # create bundle
-            bundle: Optional[InstanceDataBundle] = in_data.bundle
-            if bundle_name is not None:
-                bundle = in_data.getDataBundle(bundle_name)         # NOTE: if in_data has a bundle, this will automatically expand on that bundle
 
             # check datatype 
             if in_data.type.ftype == FileType.DICOM:
@@ -220,6 +223,7 @@ class NiftiConverter(DataConverter):
                     self.dcm2nii(instance, in_data, out_data)
                 else:
                     raise ValueError(f"CONVERT ERROR: unknown engine {self.engine}.")
+                
             elif in_data.type.ftype == FileType.NRRD:
 
                 # for nrrd files use plastimatch
@@ -230,8 +234,5 @@ class NiftiConverter(DataConverter):
                 print("CONVERT ERROR: File not created: ", out_data.abspath)
                 continue
 
-            # add output data to bundle or instance
-            if bundle:
-                bundle.addData(out_data)
-            else:
-                instance.addData(out_data)
+            # confirm that data was generated
+            out_data.confirm()

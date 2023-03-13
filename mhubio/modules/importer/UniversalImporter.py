@@ -149,6 +149,10 @@ class UniversalImporter(Module):
                 # add data to instance
                 instance.addData(instance_data)
 
+            # confirm instance data
+            if os.path.exists(instance_data.abspath):
+                instance_data.confirm()
+
         # add instances to datahandler
         self.config.data.instances = list(instances.values())
 
