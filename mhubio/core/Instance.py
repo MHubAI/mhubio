@@ -73,7 +73,7 @@ class Instance(DirectoryChainInterface):
         for k, v in self.attr.items():
             print(f"├── {cyan}{k}: {v}{cend}")
         for data in datas:
-            print(f"├── {chead}{str(data.type.ftype)}{cend} [{data.abspath}]")
+            print(f"├── {chead}{str(data.type.ftype)}{cend} [{data.abspath}]", u'\u2713' if data.confirmed else u'\u2717')
 
             # print meta    
             if meta:
