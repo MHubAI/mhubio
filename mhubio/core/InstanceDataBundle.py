@@ -20,6 +20,13 @@ class InstanceDataBundle(DirectoryChainInterface):
         parent = self.instance if not self._bundle else self._bundle
         super().__init__(path=ref, base=None, parent=parent.dc)
 
+    def __str__(self) -> str:
+        s = f"<B:{self.abspath}"
+        if self.dc.base: s+= f" (base: {self.dc.base})"
+        if self.dc.isEntrypoint: s+= ":EP"
+        s+= ">"
+        return s
+
     def addData(self, data: 'InstanceData') -> None:
         self.instance.addData(data)
         data.bundle = self
