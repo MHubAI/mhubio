@@ -124,7 +124,7 @@ class DataOrganizer(Module):
             for inp_data in inp_datas:
 
                 # accept only confirmed data
-                if not inp_data.confirmed:
+                if not inp_data.confirmed and not self.getConfiguration("require_data_confirmation", True):
                     continue
 
                 inp_data_target = self.resolveTarget(target, inp_data)

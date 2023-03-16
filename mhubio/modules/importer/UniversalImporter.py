@@ -57,7 +57,8 @@ class UniversalImporter(Module):
         bundles: Dict[str, InstanceDataBundle] = {}
        
         # the meta key that is used to reference/identify instances
-        import_id = self.getConfiguration('import_id', None) or 'sid'
+        import_id_str: str = self.getConfiguration('import_id', None) or 'sid'
+        import_id_pattern: List[str] = import_id_str.split('/')
 
         # create instances
         for s in sr:
@@ -66,18 +67,17 @@ class UniversalImporter(Module):
 
             path = s['path']
             meta = s['meta']
-        
-            if not import_id in meta:
-                print("Warning: no import id found in meta data. Skipping import.")
-                continue
 
             assert isinstance(meta, dict)
-            ref = meta[import_id]
+            assert isinstance(path, str)
+
+            # construct instance reference from import id pattern
+            ref = "/".join([meta[p] for p in import_id_pattern if p in meta])
 
             # create instance
-            assert isinstance(path, str)
             if not ref in instances:
                 instances[ref] = Instance(path=path)
+                instances[ref].attr['_ref'] = ref
                 for k, v in meta.items():
                     instances[ref].attr[k] = v
 
@@ -90,17 +90,14 @@ class UniversalImporter(Module):
             meta = s['meta']
             bundle_id = str(s['bundle'])
 
+            assert isinstance(meta, dict)
+
             # make sure bundles are created only once
             if bundle_id in bundles:
                 continue
 
-            # get reference from meta via import_id key
-            if not import_id in meta:
-                print("Warning: no import id found in meta data. Skipping import.")
-                continue
-
-            assert isinstance(meta, dict)
-            ref = meta[import_id]
+            # construct instance reference from import id pattern
+            ref = "/".join([meta[p] for p in import_id_pattern if p in meta])
 
             # get instance
             assert ref in instances, f"Error: instance {ref} not found."
@@ -120,11 +117,7 @@ class UniversalImporter(Module):
             if ftype_def in ['INSTANCE', 'BUNDLE']:
                 continue
 
-            if not import_id in meta:
-                print("Warning: no import id found in meta data. Skipping import.")
-                continue
-
-            # create data
+            # create data    
             assert isinstance(path, str) and isinstance(meta, dict)        
             assert ftype_def in FileType.__members__, f"{ftype_def} not a valid file type."
             ftype = FileType[ftype_def]
@@ -142,7 +135,7 @@ class UniversalImporter(Module):
                 bundle.addData(instance_data)
             else:
                 # get instance
-                ref = meta[import_id]
+                ref = "/".join([meta[p] for p in import_id_pattern if p in meta])
                 assert ref in instances, f"Error: instance {ref} not found."
                 instance = instances[ref]
 
@@ -183,8 +176,15 @@ def scan_directory(start_dir: str, structures: List[str], excludes: List[str], m
         # print(f"\n~> start meta: ({id(_meta)}) {_meta} for {os.path.join(start_dir, dir)}")
 
         # find matching structures (always match $xx placeholders and remove @dtype import instructioms before matching)
-        matching_structures = [sp for sp in sps if len(sp) and (sp[0].startswith('$') or dir == sp[0].split('@')[0].split('$')[0])]
+        # matching_structures = [sp for sp in sps if len(sp) and (sp[0].startswith('$') or dir == sp[0].split('@')[0].split('$')[0])]
         matching_excludes = [ep for ep in eps if len(ep) and (ep[0].startswith('$') or dir == ep[0])]
+
+        # filter matching structure 
+        #  The resuting set may contain either only placeholders or a single filter matching `dir`.
+        #  Thereby, explicit exceptions from the placeholder directive are enabled.
+        ms_placeholder = [sp for sp in sps if len(sp) and sp[0].startswith('$')]
+        ms_filter = [sp for sp in sps if len(sp) and dir == sp[0].split('@')[0].split('$')[0]]
+        matching_structures = ms_filter or ms_placeholder 
 
         # exclude (ignore dir) if matching exclude leaf reached
         matching_exclude_leafs = [e for e in matching_excludes if len(e) == 1]
