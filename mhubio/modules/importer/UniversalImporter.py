@@ -266,6 +266,21 @@ def scan_directory(start_dir: str, structures: List[str], excludes: List[str], m
                 _meta, 
                 verbose
             ):
+                
+                # Remove all instance imports from any parent directory.
+                # NOTE: Although a single statement can only have a single instance import, 
+                #       another statement might have an instance import at a different poition 
+                #       and if those statements share some matching filters / placeholders, 
+                #       multiple import statmenets can trigger. 
+                # NOTE: Instead of filtering parent imports on every recursive iteration, 
+                #       filtering the final imports list might be more efficient.
+                for n in nested_imports:
+                    if n['dtype'] == 'instance':
+                        for i in imports:
+                            if i['dtype'] == 'instance' and os.path.commonprefix([str(i['path']), str(n['path'])]) == i['path']:
+                                    imports.remove(i)
+
+                # add nested imports to imports collection
                 imports += nested_imports
             
     # return
