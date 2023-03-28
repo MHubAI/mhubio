@@ -1,6 +1,6 @@
 """
 -------------------------------------------------
-MHub - UniversalImporter 
+MHub - FileStructureImporter 
 This module imports data highly dynamic and 
 customizable from the input directory 
 structure. Import rules are defined in the 
@@ -14,16 +14,36 @@ Date:   28.02.2022
 -------------------------------------------------
 """
 
-from typing import List, Dict, Optional, Union
+from typing import List, Dict, Optional 
+from typing_extensions import TypedDict, NotRequired
 from mhubio.core import Config, Meta, Module, Instance, InstanceData, InstanceDataBundle, DataType, FileType
-import os, csv, copy, uuid
+import os, csv, copy, uuid, re, shutil
 
-ScanFeature = Dict[str, Union[str, Dict[str, str]]]
+class ScanFeature(TypedDict):
+    path: str
+    meta: Dict[str, str]
+    dtype: str
+    bundle: NotRequired[str]
 
-class UniversalImporter(Module):
+class FileStructureImporter(Module):
     """
-    Universal Importer Module.
-    Import data from a variety of sources.
+    Structural Importer Module.
+    Import data from a input directory structure.
+
+    configuration:
+        input_dir: str  (default: '')
+            The input directory that is scanned for data.
+        instance_dir: str (default: 'imported_instances')
+            The directory where instances are stored.
+        structures: List[str] (default: []) 
+            The directory structure that is used to parse meta data from the input directory.
+            The structure is defined as a list of strings. Each string defines a parsable directory structure.
+        excludes: List[str] (default: [])
+            The directory structure that is used to exclude directories from the input directory.
+        import_id: str (default: 'sid')
+            The meta key pattern, that is used to reference/identify instances.
+        outsource_instances: bool (default: True)
+            If True, instances are always outsourced to the instance directory. 
     """
 
     def __init__(self, config: Config):
@@ -34,6 +54,7 @@ class UniversalImporter(Module):
         # scan input definitions
         input_dir = self.getConfiguration('input_dir', '')
         input_dir = os.path.join(self.config.data.abspath, input_dir)
+        instances_dir = os.path.join(self.config.data.abspath, self.getConfiguration('instance_dir', 'imported_instances'))
         structures = self.getConfiguration('structures', [])
         excludes = self.getConfiguration('excludes', [])
 
@@ -57,8 +78,11 @@ class UniversalImporter(Module):
         bundles: Dict[str, InstanceDataBundle] = {}
        
         # the meta key that is used to reference/identify instances
-        import_id_str: str = self.getConfiguration('import_id', None) or 'sid'
+        import_id_str: str = self.getConfiguration('import_id', 'sid')
         import_id_pattern: List[str] = import_id_str.split('/')
+
+        # detect instances that are imported from a data import level 
+        unwrapped_instance_paths = get_unwrapped_instance_paths_from_scan_results(sr)
 
         # create instances
         for s in sr:
@@ -74,6 +98,25 @@ class UniversalImporter(Module):
             # construct instance reference from import id pattern
             ref = "/".join([meta[p] for p in import_id_pattern if p in meta])
 
+            # outsource instace base directory (all instance related files will be organized in that directory)
+            # warning if instance has no root directory but a data import path (e.g., file or dicom folder)
+            if path in unwrapped_instance_paths or self.getConfiguration('outsource_instances', True):
+
+                if path in unwrapped_instance_paths:
+                    print(f"WARNING: instance definition on dtype import level is experimental: {path}")
+
+                # make dir
+                instance_dir = os.path.join(instances_dir, ref)
+
+                # instance dir must be unique
+                assert not os.path.isdir(instance_dir), f"Error: instance dir {instance_dir} already exists."
+
+                # create instance dir
+                os.makedirs(instance_dir)
+
+                # update path
+                path = instance_dir
+
             # create instance
             if not ref in instances:
                 instances[ref] = Instance(path=path)
@@ -86,11 +129,17 @@ class UniversalImporter(Module):
             if not s['dtype'] == 'bundle':
                 continue
 
-            path = str(s['path'])
-            meta = s['meta']
-            bundle_id = str(s['bundle'])
+            assert 'bundle' in s and isinstance(s['bundle'], str)
+            assert isinstance(s['bundle'], str)
+            assert isinstance(s['meta'], dict)
+            assert isinstance(s['path'], str)
 
-            assert isinstance(meta, dict)
+            path = s['path']
+            meta = s['meta']
+            bundle_id = s['bundle']
+
+            # without further checks, bundle definition on file level is forbidden
+            assert os.path.isdir(path), f"Error: bundle definition on file level is forbidden: {path}"
 
             # make sure bundles are created only once
             if bundle_id in bundles:
@@ -108,17 +157,25 @@ class UniversalImporter(Module):
             bundles[bundle_id] = bundle
 
         # import data
+        # FIXME: imports are always absolute paths (thus always a dc entrypoint)
         for s in sr:
+
+            assert isinstance(s['meta'], dict)
+            assert isinstance(s['path'], str)
+            assert isinstance(s['dtype'], str)
+
             path = s['path']
             meta = s['meta']
-            ftype_def = str(s['dtype']).upper() # FIXME: use ftype instaed of dtype for consistency
+            ftype_def = s['dtype'].upper()                          # FIXME: use ftype instaed of dtype for consistency
 
             # ignore instance creations (done in previous step)
             if ftype_def in ['INSTANCE', 'BUNDLE']:
                 continue
 
+            # TODO: optionally copy data into (newly created) instance dir?
+            #       Nicer structure but likely adding complexity and not needed as imported files are considered read-only.
+
             # create data    
-            assert isinstance(path, str) and isinstance(meta, dict)        
             assert ftype_def in FileType.__members__, f"{ftype_def} not a valid file type."
             ftype = FileType[ftype_def]
             instance_data_type = DataType(ftype, Meta() + meta)
@@ -150,6 +207,18 @@ class UniversalImporter(Module):
         self.config.data.instances = list(instances.values())
 
 
+def get_unwrapped_instance_paths_from_scan_results(sr: List[ScanFeature]) -> List[str]:
+    sr_path_group_dtypes: Dict[str, List[str]] = {}
+    for s in sr:
+        if not s['path'] in sr_path_group_dtypes:
+            sr_path_group_dtypes[s['path']] = []
+        
+        if s['dtype'] not in sr_path_group_dtypes[s['path']]:
+            sr_path_group_dtypes[s['path']].append(s['dtype'])
+
+    return [s['path'] for s in sr if len(sr_path_group_dtypes[s['path']]) > 1 and s['dtype'] == 'instance']
+
+
 def scan_directory(start_dir: str, structures: List[str], excludes: List[str], meta: Optional[Dict[str, str]] = None, verbose: bool = False) -> List[ScanFeature]:
     """
     Scan a directory for files and import them.
@@ -179,34 +248,126 @@ def scan_directory(start_dir: str, structures: List[str], excludes: List[str], m
         # matching_structures = [sp for sp in sps if len(sp) and (sp[0].startswith('$') or dir == sp[0].split('@')[0].split('$')[0])]
         matching_excludes = [ep for ep in eps if len(ep) and (ep[0].startswith('$') or dir == ep[0])]
 
-        # filter matching structure 
-        #  The resuting set may contain either only placeholders or a single filter matching `dir`.
-        #  Thereby, explicit exceptions from the placeholder directive are enabled.
-        ms_placeholder = [sp for sp in sps if len(sp) and sp[0].startswith('$')]
-        ms_filter = [sp for sp in sps if len(sp) and dir == sp[0].split('@')[0].split('$')[0]]
-        matching_structures = ms_filter or ms_placeholder 
-
         # exclude (ignore dir) if matching exclude leaf reached
         matching_exclude_leafs = [e for e in matching_excludes if len(e) == 1]
         if len(matching_exclude_leafs) > 0:
             if verbose:
                 print(f"EXCLUDE: {dir} due to matching exclude leafs: {matching_exclude_leafs}")
             continue
+
+        # filter matching structure 
+        ms_placeholder = [sp for sp in sps if len(sp) and sp[0].startswith('$')]
+        ms_filter = [sp for sp in sps if len(sp) and dir == sp[0].split('@')[0].split('$')[0]]
+        ms_regex = [sp for sp in sps if len(sp) and sp[0].startswith('re:') and re.fullmatch(sp[0][3:].split('::')[0], dir)]
+
+        #  The resuting set may contain either only placeholders or a single filter matching `dir`.
+        #  Thereby, explicit exceptions from the placeholder directive are enabled.
+        matching_structures = ms_regex or ms_filter or ms_placeholder 
+
+        # A] Filter / Placeholder 
+        if len(ms_regex) == 0:
+
+            # extract meta keys
+            keys = {
+                *{s[0].split('@')[0] for s in matching_structures if s[0].startswith('$')},
+                *{'$' + s[0].split('$')[1].split('@')[0] for s in matching_structures if '$' in s[0]}
+            }
+
+            # exclude directory if any placeholder differs from meta value on same key (> no meta overloading)
+            #   e.g., inherited meta[sid] = A, evaluated dir = 'B' and $sid is in keys  -> exclude (A != B)
+            #   e.g., inherited meta[sid] = A, evaluated dir = 'A' and $sid in keys     -> ok      (A == B)
+            #   e.g., inherited meta[sid] = A, evaluated dir = 'B' and $sid not in keys -> ok      (no overloading)
+            if len([k for k in keys if k in _meta and _meta[k] != dir]) > 0:
+                if verbose:
+                    print(f"EXCLUDE: {dir} due to placeholder mismatch")
+                continue
+            
+            # extract imports
+            imps = {s[0].split('@')[1] for s in matching_structures if '@' in s[0]}
+
+            # extend current meta data by extracted keys from current iteration level
+            _meta: Dict[str, str] = {
+                **_meta,
+                **{key[1:]: dir for key in keys if len(key) > 0}
+            }
         
-        # extract meta keys
-        keys = {
-            *{s[0].split('@')[0] for s in matching_structures if s[0].startswith('$')},
-            *{'$' + s[0].split('$')[1].split('@')[0] for s in matching_structures if '$' in s[0]}
-        }
+        # B] Regex
+        else:
+            verbose_regex = True
 
-        # extract imports
-        imps = {s[0].split('@')[1] for s in matching_structures if '@' in s[0]}
+            if verbose_regex: print("┌───────── REGEX ─────────")
+            if verbose_regex: print("│ evaluate: ", dir)
+            if verbose_regex: print("│")
 
-        # extend current meta data by extracted keys from current iteration level
-        _meta: Dict[str, str] = {
-            **_meta,
-            **{key[1:]: dir for key in keys if len(key) > 0}
-        }
+            # collect imports
+            imps = []
+            keys = []       # <-- dummy, only for printing
+            _matching_structures = []
+
+            # iterate through matching regex structures
+            for ms in matching_structures:
+                if verbose_regex: print("│", ms[0])
+
+                # extract regex pattern and group definitions
+                regex_pattern, *groups = ms[0][3:].split("::")
+
+                if verbose_regex: print("│ ├─", regex_pattern)
+                if verbose_regex: print("│ └─", groups)
+
+                # match regex
+                match = re.fullmatch(regex_pattern, dir)
+                assert match is not None
+
+                # collect import and meta placeholsers on match level
+                #   if a filter in on of the groups unmatches, discard the whole match
+                match_imps = []
+                match_meta = {}
+                match_pass = True
+
+                # iterate all groups of the regex
+                groups_n = len(match.groups()) - 1
+                for group_i, group in enumerate(groups):
+                    if group_i <= groups_n:
+                        group_v = match.group(group_i + 1)
+                        if verbose_regex: print("│ │   └─ ", group_i, group, group_v)
+
+                        if '$' in group:                 # placeholder
+                            group_p = group.split('$')[1].split('@')[0]
+                            if group_p in _meta and _meta[group_p] != group_v:
+                                raise Exception(f"Meta overload in regex: {group_p}: <- {group_v} != {_meta[group_p]} in {dir} (regex: {regex_pattern})")
+                            match_meta[group_p] = group_v
+                            keys.append(group_p)
+                        
+                        if not group.startswith('$'):     # filter
+                            group_f = group.split('$')[0]
+                            if group_v != group_f:
+                                if verbose_regex: print("│ │   └─ ", f"𐄂    (filter unmatch: {group_v} != {group_f})")
+                                match_pass = False  
+                                break
+                        
+                        if '@' in group:                # import (within group evaluation)
+                            match_imps.append(group.split('@')[1])
+
+                    elif group.startswith('@'):         # import (outside of group evaluation, last overlapping statement)
+                        assert group != '@instance', f"Error: regex instance import must be bound to a placeholder variable."
+                        match_imps.append(group[1:])
+
+                # update imps and meta with all imps and meta extraced from regex 
+                #   only if the regex match passed all potential filters    
+                if match_pass:
+                    imps += match_imps
+                    _meta = {**_meta, **match_meta}
+                    _matching_structures.append(ms)
+
+                if verbose_regex: print("│")
+            if verbose_regex: print("│ ────────────────────────")
+            if verbose_regex: print("│ meta:   ", _meta)
+            if verbose_regex: print("│ imps:   ", imps)
+            if verbose_regex: print("└─────────────────────────")
+
+            # update matching structures
+            #   include a structure only if the regex at position 0 passed evaluation on all group filters
+            matching_structures = _matching_structures
 
         # print parsing results
         if verbose:
@@ -224,6 +385,10 @@ def scan_directory(start_dir: str, structures: List[str], excludes: List[str], m
 
                 # instance import
                 if imp == 'instance':
+
+                    if os.path.isfile(os.path.join(start_dir, dir)) and verbose:
+                        print("> WARNING: instance import on file level. Instacnes need a base folder that must be created in that case.")
+
                     imports.append({
                         'path':     os.path.join(start_dir, dir),
                         'meta':     _meta,
@@ -231,7 +396,7 @@ def scan_directory(start_dir: str, structures: List[str], excludes: List[str], m
                     })
 
                 # bundle import
-                elif imp == "":
+                elif imp == "" or imp == "bundle":
                     bundle_id = str(uuid.uuid4())
                     imports.append({
                         'path':     os.path.join(start_dir, dir),
