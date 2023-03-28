@@ -185,7 +185,9 @@ class NiftiConverter(DataConverter):
         target_idc = idc.filter(targets)
 
         # check if filtered collection contains at least one data
-        assert len(target_idc) > 0, f"CONVERT ERROR: no data found in instance {str(instance)}."
+        if len(target_idc) == 0:
+            print(f"CONVERT ERROR: no data found in instance {str(instance)}.")
+            return None
 
         # check if multi file conversion is enables
         # TODO: consider removing this limitation
