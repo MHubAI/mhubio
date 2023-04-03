@@ -17,7 +17,7 @@ from .Meta import Meta
 
 class InstanceDataCollection:
 
-    def __init__(self, data: List[InstanceData]) -> None:
+    def __init__(self, data: List[InstanceData] = []) -> None:
         self._data: List[InstanceData] = data
   
     @staticmethod
@@ -65,6 +65,17 @@ class InstanceDataCollection:
         # filter by data type
         return InstanceDataCollection(list(set(sum([self.filterByDataType(self._data, ref_type, confirmed_only) for ref_type in ref_types], []))))
 
+    def ask(self, i: int) -> Optional[InstanceData]:
+        if i < 0 or i >= len(self._data):
+            return None
+        return self._data[i]
+    
+    def get(self, i: int) -> InstanceData:
+        return self._data[i]
+
+    def first(self) -> InstanceData:
+        return self.get(0)
+
     def asList(self) -> List[InstanceData]:
         return self._data
     
@@ -74,3 +85,24 @@ class InstanceDataCollection:
 
     def __len__(self) -> int:
         return len(self._data)
+    
+    def __elem__(self, data: InstanceData) -> bool:
+        return data in self._data
+    
+    def __iter__(self) -> 'InstanceDataCollectionIterator':
+        return InstanceDataCollectionIterator(self)
+
+class InstanceDataCollectionIterator:
+    def __init__(self, collection: InstanceDataCollection) -> None:
+        self._collection: InstanceDataCollection = collection
+        self._index: int = 0
+
+    def __iter__(self) -> 'InstanceDataCollectionIterator':
+        return self
+    
+    def __next__(self) -> InstanceData:
+        if self._index >= len(self._collection):
+            raise StopIteration
+        data = self._collection.get(self._index)
+        self._index += 1
+        return data
