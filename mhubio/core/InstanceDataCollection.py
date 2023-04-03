@@ -17,8 +17,8 @@ from .Meta import Meta
 
 class InstanceDataCollection:
 
-    def __init__(self, data: List[InstanceData] = []) -> None:
-        self._data: List[InstanceData] = data
+    def __init__(self, data: Optional[List[InstanceData]] = None) -> None:
+        self._data: List[InstanceData] = data or []
   
     @staticmethod
     def filterByDataType(pool: List['InstanceData'], ref_type: DataType, confirmed_only: bool = True) -> List['InstanceData']: 
