@@ -37,6 +37,7 @@ class DataType:
         ftype_def, *meta_def = s.split(":")
 
         # get file type
+        ftype_def = ftype_def.upper()
         assert ftype_def in FileType.__members__, f"{ftype_def} not a valid file type."
         ftype = FileType[ftype_def]
 
