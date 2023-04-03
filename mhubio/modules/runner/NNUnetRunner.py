@@ -74,7 +74,7 @@ class NNUnetRunner(ModelRunner):
             _ = subprocess.run(bash_command, stdout=subprocess.PIPE)
 
         # get input data
-        inp_data = instance.getData(self._input_data_type)
+        inp_data = instance.data.filter(self._input_data_type).first()
 
         # bring input data in nnunet specific format
         # NOTE: only for nifti data as we hardcode the nnunet-formatted-filename (and extension) for now.

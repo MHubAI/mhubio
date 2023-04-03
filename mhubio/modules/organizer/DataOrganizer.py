@@ -120,12 +120,8 @@ class DataOrganizer(Module):
                 continue
 
             # get input file path
-            inp_datas = instance.filterData(type)
+            inp_datas = instance.data.filter(type, confirmed_only=self.getConfiguration("require_data_confirmation", True))
             for inp_data in inp_datas:
-
-                # accept only confirmed data
-                if not inp_data.confirmed and not self.getConfiguration("require_data_confirmation", True):
-                    continue
 
                 inp_data_target = self.resolveTarget(target, inp_data)
                 if not inp_data_target:

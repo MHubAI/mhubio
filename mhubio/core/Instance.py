@@ -19,13 +19,13 @@ from .DirectoryChain import DirectoryChainInterface
 class Instance(DirectoryChainInterface): 
     # handler:      DataHandler
     # path:         str
-    # _data:        List[InstanceData]
+    # _data:        InstanceDataCollection
     # attr:         Dict[str, str]
 
     def __init__(self, path: str = "") -> None:
         super().__init__(path=path, parent=None, base=None)
-        self._handler: Optional['DataHandler'] = None            # NOTE: handler is set delayed but is NOT OPTIONAL !
-        self._data: List['InstanceData'] = []
+        self._handler: Optional['DataHandler'] = None                   # NOTE: handler is set delayed but is NOT OPTIONAL !
+        self.data: InstanceDataCollection = InstanceDataCollection()
         self.attr: Dict[str, str] = {'id': str(uuid.uuid4())}
 
     @property
@@ -38,27 +38,17 @@ class Instance(DirectoryChainInterface):
         self._handler = handler
         self.dc.setParent(handler.dc)
 
-    @property
-    def data(self) -> List['InstanceData']:
-        return self._data
-
-    @data.setter
-    def data(self, data: List['InstanceData']):
-        for d in data:
-            d.instance = self
-        self._data = data
-
     def hasType(self, type: DataType) -> bool:
         return len([d for d in self.data if d.type.ftype == type.ftype]) > 0 # FIXME: need proper matching!!! 
 
     def getDataMetaKeys(self) -> List[str]:
         return list(set(sum([list(d.type.meta.keys()) for d in self.data], [])))
 
-    def printDataOverview(self, datas: Optional[List['InstanceData']] = None, meta: bool = False, label: str = "") -> None:
+    def printDataOverview(self, idc: Optional['InstanceDataCollection'] = None, meta: bool = False, label: str = "") -> None:
 
         # you may specify data explicitly (e.g. the result of a filter), otherwise we use the instance's data
-        if datas is None:
-            datas = self.data
+        if idc is None:
+            idc = self.data
 
         # formatting options
         # TODO: outsource or standardize if used frequently
@@ -72,7 +62,7 @@ class Instance(DirectoryChainInterface):
         print(f". Instance {fitalics}{label}{fnormal} [{self.abspath}]")
         for k, v in self.attr.items():
             print(f"├── {cyan}{k}: {v}{cend}")
-        for data in datas:
+        for data in idc:
             print(f"├── {chead}{str(data.type.ftype)}{cend} [{data.abspath}]", u'\u2713' if data.confirmed else u'\u2717')
 
             # print meta    
@@ -80,17 +70,17 @@ class Instance(DirectoryChainInterface):
                 for k, v in data.type.meta.items():
                     print(f"│   ├── {cyan}{k}: {v}{cend}")
 
-    def printDataMetaOverview(self, datas: Optional[List['InstanceData']] = None, compress: bool = True, label: str = "") -> None:
+    def printDataMetaOverview(self, idc: Optional['InstanceDataCollection'] = None, compress: bool = True, label: str = "") -> None:
 
         # you may specify data explicitly (e.g. the result of a filter), otherwise we use the instance's data
-        if datas is None:
-            datas = self.data
+        if idc is None:
+            idc = self.data
                
         # count
         cnt: Dict[FileType, Dict[str, Dict[str, int]]] = {}
         cnt_ftype: Dict[FileType, int] = {}
 
-        for data in datas:
+        for data in idc:
 
             # count filetypes (regardless of meta presence)
             if not data.type.ftype in cnt_ftype: cnt_ftype[data.type.ftype] = 0
@@ -144,60 +134,18 @@ class Instance(DirectoryChainInterface):
                                 print(f"\n|   |   |   ", end="")
                         print("")
 
-    def filterData(self, ref_types: Union[DataType, List[DataType]]) -> List['InstanceData']:
-        if not isinstance(ref_types, list):
-            ref_types = [ref_types]
-        return list(set(sum([self._filterData(ref_type) for ref_type in ref_types], [])))       
-
-    def _filterData(self, ref_type: DataType) -> List['InstanceData']: 
-        """
-        Filter for instance data by a reference data type. Only instance data that match the file type and specified meta data of the reference type are returned. A datatype matches the reference type, if all metadata of the reference type is equal to the datatype. If a datatype contains additional meta data compared to the reference type (specialization) those additional keys are ignored. 
-        """
-
-        # collect only instance data passing all checks (ftype, meta)
-        matching_data: List[InstanceData] = []
-
-        # iterate all instance data of this instance
-        for data in self.data:
-            # check file type, ignore other filetypes
-            if not data.type.ftype == ref_type.ftype:
-                continue
-
-            # check if metadata is less general than ref_type's metadata
-            if not data.type.meta <= ref_type.meta:
-                continue
-          
-            # add instance data that passes all prior checks
-            matching_data.append(data)
-
-        # return matches
-        return matching_data
-
-    def getData(self, ref_types: DataType) -> 'InstanceData':
-        fdata = self.filterData(ref_types)
-
-        # warning if multiple data available
-        if len(fdata) > 1: 
-            print("Warning, type is not unique. First element is returned.")
-        
-        #FIXME: when adding exception management, this should throw
-        if len(fdata) == 0: 
-            print("Ooops, no data found.")
-            print("> You were asking for " + str(ref_types) + ". But all I have is:")
-            print("> ", "\n> ".join([str(x) for x in self.data]))
-
-        # return data
-        return fdata[0]
-
-    # TODO: make it possible to connect data and instance such that all paths are calculatedd correctly but the data is "invisible" to the instance (at salvo). Invoke a .complete() method to resolve. Technically, this can already be achived (although not as obvious to the reader) by first assigning th einstance to the data (data.instance = instance) but without adding th edata to the instance (which has to be done later a.k.a. resolving). We could, however, check if data has a diverging instance and in that case forbid adding (assert data.instance is None or self)
-    # e.g. add , salvo: bool = False to addData signature
     def addData(self, data: 'InstanceData') -> None:
+
+        # set instance reference
         data.instance = self
         
-        if data not in self._data:
-            self._data.append(data)
-        else:
-            print("WARNING: data was already added to instance.")
+        # print a warning if data was already added to instance
+        if data in self.data:
+           print("WARNING: data was already added to instance.")
+           return
+
+        # add data to collection (no duplicates)
+        self.data.add(data)
 
     def __str__(self) -> str:
         return "<I:%s>"%(self.abspath)
@@ -219,3 +167,4 @@ class SortedInstance(Instance):
 from .DataHandler import DataHandler
 from .InstanceData import InstanceData
 from .InstanceDataBundle import InstanceDataBundle
+from .InstanceDataCollection import InstanceDataCollection

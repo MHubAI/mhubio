@@ -25,10 +25,10 @@ class DsegConverter(DataConverter):
     def convert(self, instance: Instance) -> Optional[InstanceData]:
         
         # get input data (segmentation files)
-        fdata = instance.filterData(DataType(FileType.NIFTI, SEG)) #  TODO: fetach all models? standardized meta data fields required.
+        fdata = instance.data.filter(DataType(FileType.NIFTI, SEG)) #  TODO: fetach all models? standardized meta data fields required.
 
         # get dicom data
-        dicom_data = instance.getData(DataType(FileType.DICOM))
+        dicom_data = instance.data.filter(DataType(FileType.DICOM)).first()
 
         # output data
         out_data = InstanceData("seg.dcm", DataType(FileType.DICOMSEG, SEG)) # TODO: pass model
@@ -83,8 +83,14 @@ class DsegConverter(DataConverter):
         # execute command
         bash_return = subprocess.run(bash_command, check = True, text = True)
 
+        # remove the temporarily created json config file (if ymldicomseg was used)
         if remove_json_config_file:
             removeTempfile()
 
+        # check if output file was created
+        if os.path.isfile(out_data.abspath):
+            out_data.confirm()
+
         #TODO: check success, return either None or InstanceData
+        #NOTE: future update will change from return to decorators
         return out_data

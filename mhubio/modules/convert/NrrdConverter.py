@@ -28,7 +28,7 @@ class NrrdConverter(DataConverter):
 
         # cretae a converted instance
         assert instance.hasType(DataType(FileType.DICOM)), f"CONVERT ERROR: required datatype (dicom) not available in instance {str(instance)}."
-        dicom_data = instance.getData(DataType(FileType.DICOM))
+        dicom_data = instance.data.filter(DataType(FileType.DICOM)).first()
 
         # out data
         nrrd_data = InstanceData("image.nrrd", DataType(FileType.NRRD, dicom_data.type.meta))

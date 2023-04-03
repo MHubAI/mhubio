@@ -181,8 +181,7 @@ class NiftiConverter(DataConverter):
         # print("--->", len(targets), str([str(dt) for dt in targets]))
 
         # filter instance for data
-        idc = InstanceDataCollection(instance.data)
-        target_idc = idc.filter(targets)
+        target_idc = instance.data.filter(targets)
 
         # check if filtered collection contains at least one data
         if len(target_idc) == 0:

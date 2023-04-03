@@ -46,7 +46,7 @@ class SIDFilter(DataFilter):
     sid: str
 
     def getInstanceSid(self, instance: Instance) -> str:
-        dicom_data = instance.getData(DataType(FileType.DICOM))
+        dicom_data = instance.data.filter(DataType(FileType.DICOM)).first()
         sid = dicom_data.abspath.split("/")[-2]
         print("ABS DICOM PATH: ", dicom_data.abspath, " | SID: ", sid)
         return sid
