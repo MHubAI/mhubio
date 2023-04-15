@@ -108,6 +108,9 @@ class NNUnetRunner(ModelRunner):
         bash_command += ["--model", self.nnunet_model]
         
         # add optional arguments
+        if self.c and 'folds' in self.c and self.c['folds'] is not None:
+            bash_command += ["--folds", str(self.c['folds'])]
+
         if self.c and 'use_tta' in self.c and not self.c['use_tta']:
             bash_command += ["--disable_tta"]
         
@@ -131,3 +134,7 @@ class NNUnetRunner(ModelRunner):
         data = InstanceData(out_path, DataType(FileType.NIFTI, SEG + meta))
         data.dc.makeEntrypoint()
         instance.addData(data)
+
+        # confirm output data
+        if os.path.isfile(out_path):
+            data.confirm()
