@@ -121,8 +121,7 @@ class Config:
         elif isinstance(key, type) and key.__name__ in self._config['modules']:
             return self._config['modules'][key.__name__]
         else:
-            print(f"WARNING: config '{key}' not defined.") 
-            print(self._config['modules'])
+            raise KeyError(f"Config key '{key}' not found.")
 
     def v(self, *args) -> None:
         if self.verbose:
