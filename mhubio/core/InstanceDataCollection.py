@@ -14,6 +14,7 @@ from .InstanceData import InstanceData
 from .DataType import DataType
 from .FileType import FileType
 from .Meta import Meta
+from .Error import MHubMissingDataError
 
 class InstanceDataCollection:
 
@@ -71,10 +72,22 @@ class InstanceDataCollection:
         return self._data[i]
     
     def get(self, i: int) -> InstanceData:
+        if i < 0 or i >= len(self._data):
+            raise MHubMissingDataError(f"Requested data (index {i}) does not exist.")
         return self._data[i]
 
-    def first(self) -> InstanceData:
-        return self.get(0)
+    def first(self, ref_types: Optional[Union[DataType, str, List[DataType], List[str]]] = None, confirmed_only: bool = False) -> InstanceData:
+        if ref_types is not None:
+            idc = self.filter(ref_types, confirmed_only)
+        else:
+            idc = self
+
+        if not len(idc) and ref_types is None:
+            raise MHubMissingDataError("No data.")
+        elif not len(idc):
+            raise MHubMissingDataError(f"No data matching {ref_types}.")
+        
+        return idc.get(0)
 
     def asList(self) -> List[InstanceData]:
         return self._data

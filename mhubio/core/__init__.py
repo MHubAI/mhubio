@@ -10,3 +10,4 @@ from .Meta import Meta
 from .Module import Module
 from .templates import *
 from .InstanceDataCollection import InstanceDataCollection
+from .Error import *
