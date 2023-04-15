@@ -157,6 +157,9 @@ class DataImporter(Module):
             data = self._generateInstanceData(instances[idef.ref], idef.path, dtype)
             instances[idef.ref].addData(data)
 
+            # confirm data
+            if os.path.exists(data.abspath):
+                data.confirm()
 
         # update instances to the global data handler
         self.config.data.instances = list(instances.values())
