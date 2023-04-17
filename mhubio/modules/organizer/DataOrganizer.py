@@ -16,6 +16,7 @@ from mhubio.core import Config, Module, Instance, InstanceData, DataType, FileTy
 
 class DataOrganizer(Module):
     target: Dict[DataType, str] = {}
+    set_file_permissions: bool 
 
     def __init__(self, config: Config, dry_run: bool = False, set_file_permissions: bool = False) -> None:
         super().__init__(config)
@@ -142,8 +143,24 @@ class DataOrganizer(Module):
 
                 # copy
                 if not self.dry:
-                    shutil.copyfile(inp_data.abspath, out_data.abspath)
-                    if self.set_file_permissions: os.chmod(out_data.abspath, 0o777)
+                    # copy directory or file
+                    if os.path.isdir(inp_data.abspath):
+                        shutil.copytree(inp_data.abspath, out_data.abspath)
+                    elif os.path.isfile(inp_data.abspath):
+                        shutil.copyfile(inp_data.abspath, out_data.abspath)
+                    else:
+                        raise FileNotFoundError(f"Could not copy {inp_data.abspath} to {out_data.abspath}. File not found.")
+                    
+                    # set permissions to 777 (iteratively for directories)
+                    if self.set_file_permissions: 
+                        if os.path.isfile(out_data.abspath):
+                            os.chmod(out_data.abspath, 0o777)
+                        elif os.path.isdir(out_data.abspath):
+                            for dirpath, _, filenames in os.walk(out_data.abspath):
+                                os.chmod(dirpath, 0o777)
+                                for filename in filenames:
+                                    os.chmod(os.path.join(dirpath, filename), 0o777)
+
                 else:
                     print(f"dry copy {inp_data.abspath} to {out_data.abspath}")
 

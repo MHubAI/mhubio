@@ -25,7 +25,11 @@ class DsegConverter(DataConverter):
     def convert(self, instance: Instance) -> Optional[InstanceData]:
         
         # get input data (segmentation files)
-        fdata = instance.data.filter(DataType(FileType.NIFTI, SEG)) #  TODO: fetach all models? standardized meta data fields required.
+        # TODO: filter selection will become customizable from config soon (similar to NiftiConverter2) 
+        fdata = instance.data.filter([
+            DataType(FileType.NIFTI, SEG), 
+            DataType(FileType.NRRD, SEG)
+        ]) 
 
         # get dicom data
         dicom_data = instance.data.filter(DataType(FileType.DICOM)).first()
