@@ -125,6 +125,7 @@ class DataImporter(Module):
 
         # create data instances based on the sorted output
         instances: Dict[str, Instance] = {}
+        datas: List[InstanceData] = []
         for idef in self._import_paths:
 
             # create instances
@@ -157,10 +158,15 @@ class DataImporter(Module):
             data = self._generateInstanceData(instances[idef.ref], idef.path, dtype)
             instances[idef.ref].addData(data)
 
-            # confirm data
-            if os.path.exists(data.abspath):
-                data.confirm()
+            # collect data for later confirmation
+            datas.append(data)
 
         # update instances to the global data handler
         self.config.data.instances = list(instances.values())
+
+        # confirm data
+        #   (data.abspath will only resolve once instances are added to the global data handler)
+        for data in datas:
+            if os.path.exists(data.abspath):
+                data.confirm()
 
