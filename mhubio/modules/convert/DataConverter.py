@@ -31,7 +31,11 @@ class DataConverter(Module):
         # execute convert for each instance
         # TODO: add parallelization
         for instance in instances:
-            converted = self.convert(instance)
+            try: 
+                converted = self.convert(instance)
+            except Exception as e:
+                self.v("Error while running conversion for instance " + str(instance) + ": " + str(e))
+                continue
 
             if converted is not None:
                 instance.addData(converted)

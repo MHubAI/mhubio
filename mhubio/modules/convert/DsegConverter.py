@@ -84,12 +84,16 @@ class DsegConverter(DataConverter):
 
         self.v(">> run: ", " ".join(bash_command))
 
-        # execute command
-        bash_return = subprocess.run(bash_command, check = True, text = True)
-
-        # remove the temporarily created json config file (if ymldicomseg was used)
-        if remove_json_config_file:
-            removeTempfile()
+        # run command and ensure temp file is removed even if command fails
+        try: 
+            # execute command
+            _ = subprocess.run(bash_command, check = True, text = True)
+        except Exception as e:
+            self.v("Error while running dicomseg-conversion for instance " + str(instance) + ": " + str(e))
+        finally:
+            # remove the temporarily created json config file (if ymldicomseg was used)
+            if remove_json_config_file:
+                removeTempfile()
 
         # check if output file was created
         if os.path.isfile(out_data.abspath):
