@@ -68,6 +68,16 @@ class Config:
         self.verbose = True
         self.debug = False
 
+        # cli argument for verbosity level
+        if '--verbosity' in sys.argv:
+            if ci := sys.argv.index('--verbosity') < len(sys.argv) - 1:
+                if sys.argv[ci + 1] == '0':
+                    self.verbose = False
+
+        # cli argument for debug mode
+        if '--debug' in sys.argv:
+            self.debug = True
+
         # cli overwrite config file
         if '--config' in sys.argv:
             if ci := sys.argv.index('--config') < len(sys.argv) - 1:
