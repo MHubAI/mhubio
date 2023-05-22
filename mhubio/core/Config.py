@@ -30,7 +30,13 @@ def config_argument_parser(args: List[str], allow_json_type_parsing: bool = True
             keypath, value = arg[9:].split('=', maxsplit=1)
 
             _config = config
-            edges = keypath.split('#')
+
+            # check, we move from # to . notation
+            if '#' in keypath:
+                print("Deprecation warning: # notation in config keypaths is deprecated. Use . notation instead.")
+                keypath = keypath.replace('#', '.')
+
+            edges = keypath.split('.')
             for i, p in enumerate(edges):
                 leaf = i == len(edges) - 1
                 if p not in _config and not leaf:

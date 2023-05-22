@@ -1,5 +1,6 @@
 """
 -------------------------------------------------
+DEPRECATED MODULE - DO NOT USE
 MHub - Unsorted Dicom Importer Module
 -------------------------------------------------
 
@@ -20,6 +21,12 @@ class UnsortedInstanceImporter(DataImporter):
         super().__init__(config)
         self._parameter__input_dir: Optional[str] = None
 
+        # deprecation warning
+        print("----------------------------------------------------------------------------")
+        print("Deprecation Warning - importer.UnsortedInstanceImporter initialized")
+        print("UnsortedInstanceImporter + DataSorter are replaced by the new DicomImporter.")
+        print("----------------------------------------------------------------------------")
+
     def setInputDir(self, input_dir: str) -> None:
         """Set the input directory (overwriting the config option).
         """
@@ -29,6 +36,12 @@ class UnsortedInstanceImporter(DataImporter):
         # NOTE: bypassing the base importer, as we do not import instance data but instead a shadow instance (of type UnsortedInstance) 
         # that points to a folder containing all unsorted dicom data.
         
+        # deprecation warning
+        print("----------------------------------------------------------------------------")
+        print("Deprecation Warning - importer.UnsortedInstanceImporter used")
+        print("UnsortedInstanceImporter + DataSorter are replaced by the new DicomImporter.")
+        print("----------------------------------------------------------------------------")
+
         # get input dir from config or parameter
         if self._parameter__input_dir is not None:
             input_dir = self._parameter__input_dir

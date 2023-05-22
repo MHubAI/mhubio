@@ -37,6 +37,11 @@ class DataHandler(DirectoryChainInterface):
             instance.handler = self
         self._instances = instances
 
+    def addInstance(self, instance: 'Instance') -> None:
+        assert instance not in self._instances, "Error: instance already added to data handler."
+        instance.handler = self
+        self._instances.append(instance)
+
     def getInstances(self, sorted: bool, type: 'DataType') -> List['Instance']:
         i_type = SortedInstance if sorted else UnsortedInstance
         return [i for i in self.instances if isinstance(i, i_type) and i.hasType(type)]

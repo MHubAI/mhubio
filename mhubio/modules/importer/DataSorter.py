@@ -1,5 +1,6 @@
 """
 -------------------------------------------------
+DEPRECATED MODULE - DO NOT USE
 MHub - Data Sorter Module
 -------------------------------------------------
 
@@ -26,6 +27,12 @@ class DataSorter(DataImporter):
     def __init__(self, config: Config):
         super().__init__(config)
 
+        # deprecation warning
+        print("----------------------------------------------------------------------------")
+        print("Deprecation Warning - importer.DataSorter initialized")
+        print("UnsortedInstanceImporter + DataSorter are replaced by the new DicomImporter.")
+        print("----------------------------------------------------------------------------")
+
         # get directory chain based on the data handler and the configured base dir
         # NOTE: setting `base_dir` to an absolute path (starting with /) will override the data handler prefix path and make it an entrypoint instead. 
         self.dc = DirectoryChain(path=self.c['base_dir'], parent=self.config.data.dc)
@@ -37,7 +44,13 @@ class DataSorter(DataImporter):
     def _generateInstance(self, path: str) -> SortedInstance:
         return SortedInstance(path)
 
-    def sort(self) -> None:       
+    def sort(self) -> None:    
+
+        # deprecation warning
+        print("----------------------------------------------------------------------------")
+        print("Deprecation Warning - importer.DataSorter used")
+        print("UnsortedInstanceImporter + DataSorter are replaced by the new DicomImporter.")
+        print("----------------------------------------------------------------------------")
         
         # get input data
         instances = self.config.data.instances
