@@ -76,9 +76,13 @@ class Config:
 
         # cli argument for verbosity level
         if '--verbosity' in sys.argv:
-            if ci := sys.argv.index('--verbosity') < len(sys.argv) - 1:
-                if sys.argv[ci + 1] == '0':
+            ci = sys.argv.index('--verbosity')
+            if ci < len(sys.argv) - 1:
+                verbosity = int(sys.argv[ci + 1]) 
+                if verbosity == 0:
                     self.verbose = False
+                elif verbosity > 0:
+                    self.verbose = True
 
         # cli argument for debug mode
         if '--debug' in sys.argv:
@@ -86,7 +90,8 @@ class Config:
 
         # cli overwrite config file
         if '--config' in sys.argv:
-            if ci := sys.argv.index('--config') < len(sys.argv) - 1:
+            ci = sys.argv.index('--config')
+            if ci < len(sys.argv) - 1:
                 if os.path.isfile(sys.argv[ci + 1]):
                     config_file = sys.argv[ci + 1]
                     print(f"Config file overwritten by cli argument: {config_file}")
