@@ -11,6 +11,7 @@ Email:  leonard.nuernberg@maastrichtuniversity.nl
 
 from typing import Optional, List
 from mhubio.core import Module, Instance, InstanceData
+import os
 
 class DataConverter(Module):
     """
@@ -39,6 +40,9 @@ class DataConverter(Module):
 
             if converted is not None:
                 instance.addData(converted)
+
+            if converted and os.path.exists(converted.abspath):
+                converted.confirm()
 
 
 class BundleDataConverter(Module):
