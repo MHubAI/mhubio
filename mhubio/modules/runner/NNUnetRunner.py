@@ -1,70 +1,51 @@
+"""
+-------------------------------------------------
+MHub - NNU-Net Runner
+       This is a base runner for pre-trained 
+       nnunet models. 
+-------------------------------------------------
 
-from typing import Optional
-import os, subprocess, re, shutil
+-------------------------------------------------
+Author: Leonard Nürnberg
+Email:  leonard.nuernberg@maastrichtuniversity.nl
+-------------------------------------------------
+"""
+# TODO: support multi-i/o and batch processing on multiple instances
 
-from mhubio.core import Config, Instance, InstanceData, DataType, FileType, CT, SEG
-from mhubio.modules.runner.ModelRunner import ModelRunner
+import os, subprocess, shutil
+from mhubio.core import Module, Instance, InstanceData, DataType, FileType, IO
 
+# TODO: add an optional evaluation pattern (regex) to IO.Config
+nnunet_task_name_regex = r"Task[0-9]{3}_[a-zA-Z0-9_]+"
 
-class NNUnetRunner(ModelRunner):
+@IO.Config('nnunet_task', str, None, the='nnunet task name')
+@IO.Config('nnunet_model', str, None, the='nnunet model name (2d, 3d_lowres, 3d_fullres, 3d_cascade_fullres)')
+@IO.Config('input_data_type', DataType, 'nifti:mod=ct', factory=DataType.fromString, the='input data type')
+@IO.Config('folds', int, None, the='number of folds to run nnunet on')
+@IO.Config('use_tta', bool, False, the='flag to enable test time augmentation')
+@IO.Config('export_prob_maps', bool, False, the='flag to export probability maps')
+@IO.Config('roi', str, None, the='roi or comma separated list of roi the nnunet segments')
+class NNUnetRunner(Module):
 
-    def __init__(self, config: Config) -> None:
-        super().__init__(config)
-        self._nnunet_model: Optional[str] = None
-        self._nnunet_model_available_options = ["2d", "3d_lowres", "3d_fullres", "3d_cascade_fullres"]
-        self._input_data_type: DataType = DataType(FileType.NIFTI, CT)
-        self._nnunet_task_name: Optional[str] = None
+    nnunet_task: str
+    nnunet_model: str
+    input_data_type: DataType
+    folds: int                          # TODO: support optional config attributes
+    use_tta: bool
+    export_prob_maps: bool
+    roi: str
 
-    @property
-    def nnunet_task(self) -> str:
-        nnunet_task_name_config_key = 'task'
-        if self._nnunet_task_name is not None:
-            return self._nnunet_task_name
-        elif nnunet_task_name_config_key in self.c:
-            return self.c[nnunet_task_name_config_key]
-        else:          
-            raise ValueError("No task set for nnunet runner.")
-
-    @nnunet_task.setter
-    def nnunet_task(self, nnunet_task_name: str) -> None:
-        # regular expression for nnunet task names
-        nnunet_task_name_regex = r"Task[0-9]{3}_[a-zA-Z0-9_]+"
-        if not re.match(nnunet_task_name_regex, nnunet_task_name):
-            raise ValueError("Invalid nnunet task name.")
-        
-        # set task name (overrides any coniguration from the confif.yml file)
-        self._nnunet_task_name = nnunet_task_name
-
-    @property
-    def nnunet_model(self) -> str:
-        nnunet_model_config_key = 'model'
-        if self._nnunet_model is not None and self._nnunet_model in self._nnunet_model_available_options:
-            return self._nnunet_model
-        elif nnunet_model_config_key in self.c and self.c[nnunet_model_config_key] in self._nnunet_model_available_options:
-            return self.c[nnunet_model_config_key]
-        else:
-            raise ValueError("No model set for nnunet runner.")
-
-    @nnunet_model.setter
-    def nnunet_model(self, nnunet_model: str) -> None:
-        assert nnunet_model in self._nnunet_model_available_options
-        self._nnunet_model = nnunet_model
-
-    @property
-    def input_type(self) -> DataType:
-        return self._input_data_type
-    
-    @input_type.setter
-    def input_type(self, type: DataType) -> None:
-        self._input_data_type = type
-
-
-    def runModel(self, instance: Instance) -> None:
+    @IO.Instance()
+    @IO.Input("in_data", IO.C("input_data_type"), the="input data to run nnunet on")
+    @IO.Output("out_data", 'VOLUME_001.nii.gz', 'nifti:mod=seg:model=nnunet', data='in_data', the="output data from nnunet")
+    def task(self, instance: Instance, in_data: InstanceData, out_data: InstanceData) -> None:
         
         # get the nnunet model to run
-        print("Running nnUNet_predict.")
-        print(f" > task: {self.nnunet_task}")
-        print(f" > model: {self.nnunet_model}")
+        self.v("Running nnUNet_predict.")
+        self.v(f" > task:        {self.nnunet_task}")
+        self.v(f" > model:       {self.nnunet_model}")
+        self.v(f" > input data:  {in_data.abspath}")
+        self.v(f" > output data: {out_data.abspath}")
 
         # download weights if not found
         # NOTE: only for testing / debugging. For productiio always provide the weights in the Docker container.
@@ -73,16 +54,13 @@ class NNUnetRunner(ModelRunner):
             bash_command = ["nnUNet_download_pretrained_model", self.nnunet_task]
             _ = subprocess.run(bash_command, stdout=subprocess.PIPE)
 
-        # get input data
-        inp_data = instance.data.filter(self._input_data_type).first()
-
         # bring input data in nnunet specific format
         # NOTE: only for nifti data as we hardcode the nnunet-formatted-filename (and extension) for now.
-        assert inp_data.type.ftype == FileType.NIFTI
-        assert inp_data.abspath.endswith('.nii.gz')
+        assert in_data.type.ftype == FileType.NIFTI
+        assert in_data.abspath.endswith('.nii.gz')
         inp_dir = self.config.data.requestTempDir(label="nnunet-model-inp")
         inp_file = f'VOLUME_001_0000.nii.gz'
-        shutil.copyfile(inp_data.abspath, os.path.join(inp_dir, inp_file))
+        shutil.copyfile(in_data.abspath, os.path.join(inp_dir, inp_file))
 
         # define output folder (temp dir) and also override environment variable for nnunet
         out_dir = self.config.data.requestTempDir(label="nnunet-model-out")
@@ -108,33 +86,36 @@ class NNUnetRunner(ModelRunner):
         bash_command += ["--model", self.nnunet_model]
         
         # add optional arguments
-        if self.c and 'folds' in self.c and self.c['folds'] is not None:
-            bash_command += ["--folds", str(self.c['folds'])]
+        if self.folds is not None:
+            bash_command += ["--folds", str(self.folds)]
 
-        if self.c and 'use_tta' in self.c and not self.c['use_tta']:
+        if self.use_tta:
             bash_command += ["--disable_tta"]
         
-        if self.c and 'export_prob_maps' in self.c and not self.c['export_prob_maps']:
+        if self.export_prob_maps:
             bash_command += ["--save_npz"]
 
         # run command
-        bash_return = subprocess.run(bash_command, check=True, text=True)
+        _ = subprocess.run(bash_command, check=True, text=True)
 
         # output meta
         meta = {
             "model": "nnunet",
-            "task": self.nnunet_task
+            "nnunet_task": self.nnunet_task,
+            "nnunet_model": self.nnunet_model,
+            "roi": self.roi
         }
 
         # get output data
         out_file = f'VOLUME_001.nii.gz'
         out_path = os.path.join(out_dir, out_file)
-        
-        # add output data to instance
-        data = InstanceData(out_path, DataType(FileType.NIFTI, SEG + meta))
-        data.dc.makeEntrypoint()
-        instance.addData(data)
+
+        # copy output data to instance
+        shutil.copyfile(out_path, out_data.abspath)
+
+        # update meta dynamically
+        out_data.type.meta += meta
 
         # confirm output data
-        if os.path.isfile(out_path):
-            data.confirm()
+        if os.path.isfile(out_data.abspath):
+            out_data.confirm()
