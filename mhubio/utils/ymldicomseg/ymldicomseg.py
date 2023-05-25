@@ -22,14 +22,14 @@ db = {
    'segmentations': pd.read_csv(os.path.join(DATA_DIR, 'segmentations.csv')).set_index('id')
 }
 
-def buildSegmentJsonBySegId(segid):
+def buildSegmentJsonBySegId(segid, labelID: int = 1):
     global db
     
     seg = db['segmentations'].loc[segid]
         
     # mandatory
     json = {
-        'labelID': 1,
+        'labelID': labelID,
         'SegmentDescription': seg['name'],
         'SegmentAlgorithmType': 'AUTOMATIC',
         'SegmentAlgorithmName': 'TotalSegmentator',

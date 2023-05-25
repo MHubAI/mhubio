@@ -60,7 +60,10 @@ class Meta:
         omdict = (o.mdict if isinstance(o, Meta) else o)
         assert isinstance(omdict, dict)
         for k, v in omdict.items():
-            if self[k] != v:
+            if v == '*':
+                if k not in self.mdict:
+                    return False
+            elif self[k] != v:
                 return False
         return True
 
@@ -78,5 +81,7 @@ class Meta:
     def __bool__(self) -> bool:
         return len(self) > 0
     
-    def __dict__(self):
+    #def __dict__(self):
+    #    return self.mdict
+    def to_dict(self):
         return self.mdict

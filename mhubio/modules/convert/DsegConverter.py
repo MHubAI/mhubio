@@ -9,96 +9,109 @@ Email:  leonard.nuernberg@maastrichtuniversity.nl
 -------------------------------------------------
 """
 
-from typing import Optional
+from typing import List
+from mhubio.core import Module, Instance, InstanceData, InstanceDataCollection, DataType, IO
+from mhubio.utils.ymldicomseg import buildSegmentJsonBySegId
+import os, subprocess, json
 
-from mhubio.core import Instance, InstanceData, DataType, FileType, Meta, SEG
-from .DataConverter import DataConverter
-from mhubio.utils.ymldicomseg import exportJsonMeta, removeTempfile
+@IO.Config('source_segs', List[DataType], ['nifti:mod=seg:roi=*', 'nrrd:mod=seg:roi=*'], factory=IO.F.list(DataType.fromString), the='target segmentation files to convert to dicomseg')
+@IO.Config('target_dicom', DataType, 'dicom:mod=ct', factory=DataType.fromString, the='dicom data all segmentations align to')
+@IO.Config('skip_empty_slices', bool, True, the='flag to skip empty slices')
+@IO.Config('converted_file_name', str, 'seg.dcm', the='name of the converted file')
+@IO.Config('bundle_name', str, None, the="bundle name converted data will be added to")
+@IO.Config('model_name', str, 'MHub-Model', the="model name populated in the dicom seg SeriesDescription attribute")
+@IO.Config('json_config_path', str, None, the='path to the dicomseg json config file')    
+@IO.Config('segment_id_meta_key', str, 'roi', the='meta key used to identify the roi in the dicomseg json config file')
+class DsegConverter(Module):
 
-import os, subprocess
+    source_segs: List[DataType]
+    target_dicom: DataType
+    skip_empty_slices: bool
+    converted_file_name: str
+    bundle_name: str
+    model_name: str
+    json_config_path: str
+    segment_id_meta_key: str
 
-# TODO: we should have a generator for instance data (e.g., on the Instance class)
+    def generateJsonMeta(self, definition):
 
-# TODO: Dicomseg generation so far epends on the model. This should, however, be more independend. Ideally, a segmentation carries information about it's ROI in the DataType metatada (will be targeted in the upcoming DataType revision). This can be used to the generate the conversion file dynamicaly and model independend (of course each model has to populate a maping of it's segmentations but that's A simpler, B functional for other use cases too)
+        # json meta
+        json_meta = {
+            'BodyPartExamined': 'WHOLEBODY',
+            'ClinicalTrialCoordinatingCenterName': 'dcmqi',
+            'ClinicalTrialSeriesID': '0',
+            'ClinicalTrialTimePointID': '1',
+            'ContentCreatorName': 'MHub',
+            'ContentDescription': 'Image segmentation',
+            'ContentLabel': 'SEGMENTATION',
+            'InstanceNumber': '1',
+            'SeriesDescription': self.model_name,
+            'SeriesNumber': '42',
+            'segmentAttributes': []
+        }
 
-class DsegConverter(DataConverter):
-    def convert(self, instance: Instance) -> Optional[InstanceData]:
+        # json meta present for each roi
+        segment_base_attributes = {
+            'SegmentAlgorithmType': 'AUTOMATIC',
+            'SegmentAlgorithmName': 'Platipy',
+        }
+
+        # generate json meta per file and segments
+        json_meta['segmentAttributes'] = [[{**buildSegmentJsonBySegId(roi, labelID + 1), **segment_base_attributes} for labelID, roi in enumerate(rois)] for rois in definition.values()]
+        file_list = list(definition.keys())
+
+        return json_meta, file_list
+
+    @IO.Instance()
+    @IO.Inputs("in_segs", IO.C("source_segs"), the="input data to convert to dicomseg")
+    @IO.Input("in_dicom", IO.C("target_dicom"), the="input dicom data to convert to dicomseg")
+    @IO.Output('out_data', path=IO.C('converted_file_name'), dtype='dicomseg:mod=seg', data='in_dicom', bundle=IO.C('bundle_name'), auto_increment=True, the="converted data")
+    def task(self, instance: Instance, in_segs: InstanceDataCollection, in_dicom: InstanceData, out_data: InstanceData) -> None:
         
-        # get input data (segmentation files)
-        # TODO: filter selection will become customizable from config soon (similar to NiftiConverter2) 
-        fdata = instance.data.filter([
-            DataType(FileType.NIFTI, SEG), 
-            DataType(FileType.NRRD, SEG)
-        ]) 
+        # either use a custom json config or generate based on meta label (default key: roi)
+        if self.json_config_path is not None:
 
-        # get dicom data
-        dicom_data = instance.data.filter(DataType(FileType.DICOM)).first()
-
-        # output data
-        out_data = InstanceData("seg.dcm", DataType(FileType.DICOMSEG, SEG)) # TODO: pass model
-        out_data.instance = instance
-
-        # get config json & input files
-        if 'dicomseg_json_path' in self.c:
-            # get segmentation paths list
-            pred_segmasks_nifti_list = [d.abspath for d in fdata]
-            
-            # TODO: old approach, only valid as long all segmentations are in the same folder.
-            #       we could encode the standardized segmentation names in the meta data, e.g. by utilizing the dicomseg.yml config in the ModelRunner. To discuss wheather we loop over whats available (filesystem / data filter) or whats defined (config) or use the union and report missing values.
-            pred_segmasks_nifti_list = ",".join(sorted(pred_segmasks_nifti_list))
-
-            # config (json)
-            dicomseg_json_path = self.c['dicomseg_json_path']
-            remove_json_config_file = False
-
-        elif 'dicomseg_yml_path' in self.c:
-
-            # get abs paths and a list of all filenames 
-            # -> json will be generated following the fil_list order.
-            # NOTE: relies on the (uninvorced) convention, that InstanceData.data is the basename 
-            #       (e.g. the file name) rather than a folder structure of any depth.
-            # file_list = [d.path for d in fdata]
-            # NOTE: ... which is not the case for data hosted outside (here path is the abspath and base is empty). Revision or detailed documentation needed!
-
-            file_list = [os.path.basename(d.abspath) for d in fdata]
-
-            # config (yml->json)
-            dicomseg_json_path, file_list = exportJsonMeta(self.c['dicomseg_yml_path'], file_list)
-            remove_json_config_file = True
-
-            #
-            pred_segmasks_nifti_list = ",".join([d.abspath for d in fdata if os.path.basename(d.abspath) in file_list])
+            # sort files alphabetically
+            file_list = sorted([in_seg.abspath for in_seg in in_segs])   
+            json_config_path = self.json_config_path
 
         else:
-            raise ValueError("Configuration missing, either json or yml config is required to generate dicomseg.")
+
+            # get ROI - file construct
+            roi_def = {in_seg.abspath: in_seg.type.meta[self.segment_id_meta_key].split(",") for in_seg in in_segs}
+
+            # generate the json meta in a temp directory 
+            json_meta, file_list = self.generateJsonMeta(roi_def)
+            tmp_dir = self.config.data.requestTempDir('dseg_converter')
+            json_config_path = os.path.join(tmp_dir, "temp-meta.json")
+
+            # temporarily store json
+            with open(json_config_path, 'w') as f:
+                json.dump(json_meta, f)
+
+            # create outdir if required
+            # TODO: can we handle this during bundle creation or in IO decorator?
+            if not os.path.isdir(os.path.dirname(out_data.abspath)):
+                os.makedirs(os.path.dirname(out_data.abspath))
 
         # build command
         bash_command  = ["itkimage2segimage"]
-        bash_command += ["--inputImageList", pred_segmasks_nifti_list]
-        bash_command += ["--inputDICOMDirectory", dicom_data.abspath]
+        bash_command += ["--inputImageList", ','.join(file_list)]
+        bash_command += ["--inputDICOMDirectory", in_dicom.abspath]
         bash_command += ["--outputDICOM", out_data.abspath]
-        bash_command += ["--inputMetadata", dicomseg_json_path]
+        bash_command += ["--inputMetadata", json_config_path]
 
+        # add skip empty slices flag
         if self.c["skip_empty_slices"] == True:
             bash_command += ["--skip"]
 
-        self.v(">> run: ", " ".join(bash_command))
-
-        # run command and ensure temp file is removed even if command fails
+        # run command
         try: 
-            # execute command
+            self.v(">> run: ", " ".join(bash_command))
             _ = subprocess.run(bash_command, check = True, text = True)
         except Exception as e:
             self.v("Error while running dicomseg-conversion for instance " + str(instance) + ": " + str(e))
-        finally:
-            # remove the temporarily created json config file (if ymldicomseg was used)
-            if remove_json_config_file:
-                removeTempfile()
 
         # check if output file was created
         if os.path.isfile(out_data.abspath):
             out_data.confirm()
-
-        #TODO: check success, return either None or InstanceData
-        #NOTE: future update will change from return to decorators
-        return out_data
