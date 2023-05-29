@@ -9,7 +9,7 @@ Email:  leonard.nuernberg@maastrichtuniversity.nl
 -------------------------------------------------
 """
 
-from typing import Any, List, Type
+from typing import Any, List, Type, Optional
 from .Config import Config
 
 import time
@@ -20,11 +20,12 @@ class Module:
     # verbose:  bool
     # debug:    bool
 
-    def __init__(self, config: Config) -> None:
+    def __init__(self, config: Config, local_config: Optional[dict] = None) -> None:
         self.label: str = self.__class__.__name__
         self.config: Config = config
         self.verbose: bool = config.verbose
         self.debug: bool = config.debug
+        self.local_config: dict = local_config if local_config is not None else {}
 
     @property 
     def c(self) -> Any:
@@ -32,7 +33,11 @@ class Module:
     
     def getConfiguration(self, key: str, default: Any = None) -> Any:
         try:
-            return self.c[key]
+            if key in self.local_config:
+                return self.local_config[key]
+            else:
+                # NOTE: this might fail --> try/catch except block them returns default value
+                return self.c[key]
         except:
             return default
 

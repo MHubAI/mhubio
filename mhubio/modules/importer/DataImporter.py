@@ -33,8 +33,8 @@ class DataImporter(Module):
     An importer must always be the first module of any module chain.
     """
 
-    def __init__(self, config: Config) -> None:
-        super().__init__(config)
+    def __init__(self, config: Config, **kwargs) -> None:
+        super().__init__(config, **kwargs)
         self.basePath: Optional[str] = None
         self._import_paths: List[IDEF] = []
         self._import_attrs: List[Tuple[str, str, str]] = []

@@ -43,9 +43,6 @@ class DicomImporter(Module):
     structure: str = "%SeriesInstanceUID/dicom/%SOPInstanceUID.dcm"
     meta: dict
 
-    def __init__(self, config: Config):
-        super().__init__(config)
-
     def sort(self, input_dir, sorted_dir, schema) -> None:   
 
         # print schema
