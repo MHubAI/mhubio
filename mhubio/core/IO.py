@@ -212,12 +212,18 @@ class IO:
                     if ref_bundle and not os.path.exists(ref_bundle.abspath):
                         os.makedirs(ref_bundle.abspath)
 
+                    # news idea, use dynamic paths (similar to organizer)
+                    _one_data_bn = os.path.basename(_one_data.abspath)
+                    _one_data_path = _path.replace('[basename]', _one_data_bn)
+                    _one_data_path = _one_data_path.replace('[filename]', _one_data_bn.split('.', 1)[0])
+                    _one_data_path = _one_data_path.replace('[filext]', _one_data_bn.split('.', 1)[1] if _one_data_bn.count('.') > 0 else '')
+
                     # copy meta data from ref data if any
                     out_data_type = DataType.fromString(_dtype)
                     out_data_type.meta = _one_data.type.meta + out_data_type.meta
 
                     # create instance data and add to collection
-                    out_data = InstanceData(path=_path, type=out_data_type, instance=instance, bundle=ref_bundle, data=_one_data, auto_increment=auto_increment)
+                    out_data = InstanceData(path=_one_data_path, type=out_data_type, instance=instance, bundle=ref_bundle, data=_one_data, auto_increment=auto_increment)
                     idc.add(out_data)
 
                 # call wrapped function
