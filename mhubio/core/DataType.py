@@ -53,6 +53,18 @@ class DataType:
         # create data type instance
         return DataType(ftype, meta)
 
+    def toString(self) -> str:
+        """
+        Convert data type to string representation.
+        Example: DataType(FileType.DICOMSEG, Meta(mod, seg)) -> DICOMSEG:mod=seg
+        """
+
+        # assemble meta string
+        meta_str = ":".join([f"{k}={v}" for k, v in self.meta.items()])
+
+        # assemble data type string
+        return f"{self.ftype.name}:{meta_str}"
+
     def __str__(self) -> str:
         s: str = "[T:" + str(self.ftype)
         if self.meta: s += ":" + str(self.meta)
