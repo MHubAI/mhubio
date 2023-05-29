@@ -9,12 +9,11 @@ Email:  leonard.nuernberg@maastrichtuniversity.nl
 -------------------------------------------------
 """
 
-
 from enum import Enum
-from typing import Optional, List
+from typing import List
 
-from .DataConverter import DataConverter
-from mhubio.core import Config, Instance, InstanceDataBundle, InstanceDataCollection, InstanceData, DataType, FileType, CT
+from mhubio.core import Module, Instance, InstanceDataCollection, InstanceData, DataType, FileType, CT
+from mhubio.core.IO import IO
 
 import os, subprocess
 import pyplastimatch as pypla # type: ignore
@@ -23,87 +22,37 @@ class NiftiConverterEngine(Enum):
     PLASTIMATCH = 'plastimatch'
     DCM2NIIX     = 'dcm2niix'
 
-class NiftiConverter(DataConverter):
+@IO.Config('engine', NiftiConverterEngine, 'plastimatch', factory=NiftiConverterEngine, the='engine to use for conversion')
+@IO.Config('allow_multi_input', bool, False, the='allow multiple input files')
+@IO.Config('targets', List[DataType], ['dicom:mod=ct', 'nrrd:mod=ct'], factory=IO.F.list(DataType.fromString), the='target data types to convert to nifti')
+@IO.Config('bundle_name', str, 'nifti', the="bundle name converted data will be added to")
+@IO.Config('converted_file_name', str, '[basename].nii.gz', the='name of the converted file')
+@IO.Config('overwrite_existing_file', bool, False, the='overwrite existing file if it exists')
+#@IO.Config('wrap_output', bool, False, the='Wrap output in bundles. Required, if multiple input data is allowed that is not yet separated into distinct bundles.')
+class NiftiConverter(Module):
     """
     Conversion module. 
     Convert instance data from dicom or nrrd to nifti.
     """
 
-    def __init__(self, config: Config) -> None:
-        super().__init__(config)
-        self._engine: Optional[NiftiConverterEngine] = None
-        self._allow_multi_input: Optional[bool] = None
-        self._targets: List[DataType] = []
-
-        self._importTargetsFromConfig()
-
-    @property
-    def engine(self) -> NiftiConverterEngine:
-        if self._engine is None: 
-            engine_from_config = self.getConfiguration('engine', 'plastimatch')
-            return NiftiConverterEngine[engine_from_config.upper()]
-        else:
-            return self._engine 
-
-    @engine.setter
-    def engine(self, engine: NiftiConverterEngine) -> None:
-        self._engine = engine
-
-    @property
-    def allow_multi_input(self) -> bool:
-        if self._allow_multi_input is None:
-            return self.getConfiguration('allow_multi_input', False)
-        else:
-            return self._allow_multi_input
-        
-    @allow_multi_input.setter
-    def allow_multi_input(self, allow_multi_input: bool) -> None:
-        self._allow_multi_input = allow_multi_input  
-
-    def _importTargetsFromConfig(self) -> None:
-        """
-        conversion example [code implementation / config dictionary]  
-        restricted characters: [':', '=']
-
-        converter.setTarget(DataType(FileType.DICOM, Meta(part='ADC')))
-        converter.setTarget(DataType(FileType.DICOM, Meta(part='T2')))
-
-        {
-          "modules": {
-              "NiftiConverter": {
-                  "targets": [
-                      "DICOM:part=ADC",   
-                      "DICOM:part=T2"
-                  ]
-             }
-        }
-        """
-
-        # automatically import targets from config if defined
-        targets = self.getConfiguration("targets")
-        if targets and isinstance(targets, list):
-            for target_definition in targets:
-                try:
-                    # instantiate datatype from string representation
-                    data_type = DataType.fromString(target_definition)
-                    
-                    # set target 
-                    self.setTarget(data_type)
-                except Exception as e:
-                    print(f"WARNING: could not parse target definition '{target_definition}: {str(e)}'")
+    engine: NiftiConverterEngine
+    allow_multi_input: bool
+    targets: List[DataType]
+    bundle_name: str                    # TODO optional type declaration
+    converted_file_name: str
+    overwrite_existing_file: bool
+    #wrap_output: bool
 
     def setTarget(self, target: DataType) -> None:
-        self._targets.append(target)
+        self.targets.append(target)
 
-    def plastimatch(self, instance: Instance, in_data: InstanceData, out_data: InstanceData, bundle: Optional[InstanceDataBundle] = None) -> None:
+    def plastimatch(self, instance: Instance, in_data: InstanceData, out_data: InstanceData, log_data: InstanceData) -> None:
 
-        # log data
-        log_data = InstanceData("_pypla.log", DataType(FileType.LOG, in_data.type.meta + {
-            "log-origin": "plastimatch",
-            "log-task": "conversion",
-            "log-caller": "NiftiConverter.dicom2nifti",
-            "log-instance": str(instance)
-        }), instance, bundle, auto_increment=True)
+        #print("[DRY RUN] plastimatch")
+        #print("[DRY RUN] in:  ", in_data.abspath)
+        #print("[DRY RUN] out: ", out_data.abspath)
+        #print("[DRY RUN] log: ", log_data.abspath)
+        #return
 
         # set input and output paths later passed to plastimatch
         convert_args_ct = {
@@ -126,6 +75,11 @@ class NiftiConverter(DataConverter):
             log_data.confirm()
 
     def dcm2nii(self, instance: Instance, in_data: InstanceData, out_data: InstanceData) -> None:
+
+        #print("[DRY RUN] dcm2nii")
+        #print("[DRY RUN] in:  ", in_data.abspath)
+        #print("[DRY RUN] out: ", out_data.abspath)
+        #return
 
         # verbosity level
         # TODO: once global verbosity levels are implemented, propagate them here
@@ -158,59 +112,35 @@ class NiftiConverter(DataConverter):
         # execute command
         _ = subprocess.run(bash_command, check = True, text = True)
 
-    def convert(self, instance: Instance) -> None:
+    @IO.Instance()
+    @IO.Inputs('in_datas', IO.C('targets'), the="data to be converted")
+    @IO.Outputs('out_datas', path=IO.C('converted_file_name'), dtype='nifti', data='in_datas', bundle=IO.C('bundle_name'), auto_increment=True, the="converted data")
+    @IO.Outputs('log_datas', path='[basename].pmconv.log', dtype='log:log-task=conversion', data='in_datas', bundle=IO.C('bundle_name'), auto_increment=True, the="log generated by conversion engine")
+    def task(self, instance: Instance, in_datas: InstanceDataCollection, out_datas: InstanceDataCollection, log_datas: InstanceDataCollection, **kwargs) -> None:
 
-        # define output semantics
-        converted_file_name: str = self.getConfiguration('converted_file_name', 'image.nii.gz') # file name of the converted file
-        bundle_name: Optional[str] = self.getConfiguration('bundle_name', None)                 # will be set as bundle ref
+        # some sanity checks
+        assert isinstance(in_datas, InstanceDataCollection)
+        assert isinstance(out_datas, InstanceDataCollection)
+        assert len(in_datas) == len(out_datas)
+        assert len(in_datas) == len(log_datas)
 
-        # experimental
-        if bundle_name is not None:
-            print("WARNING: experimental feature 'bundle_name' is used.")
-
-        # define default targets
-        default_targets = [
-            DataType(FileType.DICOM, CT),
-            DataType(FileType.NRRD, CT),
-        ]
-
-        # fetch target data from instance (use default targets if nothing else specified)
-        targets = self._targets if len(self._targets) > 0 else default_targets
-
-        # debug  (print targets used for conversion)
-        # print("--->", len(targets), str([str(dt) for dt in targets]))
-
-        # filter instance for data
-        target_idc = instance.data.filter(targets)
-
-        # check if filtered collection contains at least one data
-        if len(target_idc) == 0:
+        # filtered collection must not be empty
+        if len(in_datas) == 0:
             print(f"CONVERT ERROR: no data found in instance {str(instance)}.")
             return None
 
         # check if multi file conversion is enables
-        # TODO: consider removing this limitation
-        in_datas = target_idc.asList()
         if not self.allow_multi_input and len(in_datas) > 1:
             print("WARNING: found more than one matching file but multi file conversion is disabled. Only the first file will be converted.")
-            in_datas = [in_datas[0]]
+            in_datas = InstanceDataCollection([in_datas.first()])
 
         # conversion step
-        for in_data in in_datas:
-
-            # specify bundle 
-            #  if input data is part of a bundle (in_data.bundle != None), this bundle will be used as our base bunde
-            #  if additionally a bundle_name is specified, a new bundle will be created based on the base bundle or instance if no base bundle exists.
-            #  all data will be added to the here specified bundle or if no bundle is specified, to the instance.
-            bundle: Optional[InstanceDataBundle] = in_data.bundle
-            if bundle_name is not None:
-                bundle = in_data.getDataBundle(bundle_name)         # NOTE: if in_data has a bundle, this will automatically expand on that bundle
-
-            # get output data
-            out_data = InstanceData(converted_file_name, DataType(FileType.NIFTI, in_data.type.meta), instance, bundle)
+        for i, in_data in enumerate(in_datas):
+            out_data = out_datas.get(i)
+            log_data = log_datas.get(i)
 
             # check if output data already exists
-            if os.path.isfile(out_data.abspath) and not self.getConfiguration('overwrite_existing_file', False):
+            if os.path.isfile(out_data.abspath) and not self.overwrite_existing_file:
                 print("CONVERT ERROR: File already exists: ", out_data.abspath)
                 continue
 
@@ -219,7 +149,7 @@ class NiftiConverter(DataConverter):
 
                 # for dicom data use either plastimatch or dcm2niix 
                 if self.engine == NiftiConverterEngine.PLASTIMATCH:
-                    self.plastimatch(instance, in_data, out_data, bundle)
+                    self.plastimatch(instance, in_data, out_data, log_data)
                 elif self.engine == NiftiConverterEngine.DCM2NIIX:
                     self.dcm2nii(instance, in_data, out_data)
                 else:
@@ -228,12 +158,4 @@ class NiftiConverter(DataConverter):
             elif in_data.type.ftype == FileType.NRRD:
 
                 # for nrrd files use plastimatch
-                self.plastimatch(instance, in_data, out_data, bundle)
-
-            # check if output file was created
-            if not os.path.isfile(out_data.abspath):
-                print("CONVERT ERROR: File not created: ", out_data.abspath)
-                continue
-
-            # confirm that data was generated
-            out_data.confirm()
+                self.plastimatch(instance, in_data, out_data, log_data)
