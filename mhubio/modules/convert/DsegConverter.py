@@ -113,5 +113,5 @@ class DsegConverter(Module):
             self.v("Error while running dicomseg-conversion for instance " + str(instance) + ": " + str(e))
 
         # check if output file was created
-        if os.path.isfile(out_data.abspath):
-            out_data.confirm()
+        #if os.path.isfile(out_data.abspath):
+        #    out_data.confirm()
