@@ -18,8 +18,8 @@ class DataOrganizer(Module):
     target: Dict[DataType, str] = {}
     set_file_permissions: bool 
 
-    def __init__(self, config: Config, dry_run: bool = False, set_file_permissions: bool = False) -> None:
-        super().__init__(config)
+    def __init__(self, config: Config, dry_run: bool = False, set_file_permissions: bool = False, **kwargs) -> None:
+        super().__init__(config, **kwargs)
         self.dry = dry_run
         self.set_file_permissions = set_file_permissions
 
@@ -70,6 +70,9 @@ class DataOrganizer(Module):
         Dynamic options:
             [random] -> random uuid4 string
             [path] -> relative path of the datatype (<DataType>.path)
+            [basename] -> basename of the datatype (os.path.basename(<DataType>.abspath))
+            [filename] -> filename of the datatype (os.path.basename(<DataType>.abspath).split('.', 1)[0]))
+            [filext] -> file extension of the datatype (os.path.basename(<DataType>.abspath).split('.', 1)[1]?)
             [i:id] -> instance id
             [i:...] -> any attribute from instance id (<Instance>.attr[...])
             [d:...] -> any metadata from datatype (<DataType>.meta[...])
@@ -93,6 +96,13 @@ class DataOrganizer(Module):
                         _target = _target.replace('[random]', str(uuid.uuid4()))
                     elif var == "path":
                         _target = _target.replace("[path]", data.dc.path)
+                    elif var == "basename":
+                        _target = _target.replace("[basename]", os.path.basename(data.abspath))
+                    elif var == "filename":
+                        _target = _target.replace("[filename]", os.path.basename(data.abspath).split('.', 1)[0])
+                    elif var == "filext":
+                        file_ext = os.path.basename(data.abspath).split('.', 1)[1] if '.' in os.path.basename(data.abspath) else ""
+                        _target = _target.replace("[filext]", file_ext)
                 elif scope == "i:" and data.instance is not None:
                     if not var in data.instance.attr:
                         print(f"WARNING: attribute '{var}' missing in instance {data.instance}. Case ignored.")
@@ -113,6 +123,8 @@ class DataOrganizer(Module):
         self.v("organizing instance", str(instance))
         
         for (type, target) in self.target.items():
+
+            self.v(f"> {type.toString()} -> {target}")
             
             if not instance.hasType(type):
                 self.v(f"type {str(type)} not in instance. all types are:")
