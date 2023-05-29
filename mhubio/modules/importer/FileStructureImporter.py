@@ -45,11 +45,7 @@ class FileStructureImporter(Module):
         outsource_instances: bool (default: True)
             If True, instances are always outsourced to the instance directory. 
     """
-
-    def __init__(self, config: Config):
-        super().__init__(config)
-
-    
+   
     def task(self) -> None:
         # scan input definitions
         input_dir = self.getConfiguration('input_dir', '')
@@ -78,7 +74,7 @@ class FileStructureImporter(Module):
         bundles: Dict[str, InstanceDataBundle] = {}
        
         # the meta key that is used to reference/identify instances
-        import_id_str: str = self.getConfiguration('import_id', 'sid')
+        import_id_str: str = self.getConfiguration('import_id', '_instance')
         import_id_pattern: List[str] = import_id_str.split('/')
 
         # detect instances that are imported from a data import level 
@@ -97,6 +93,16 @@ class FileStructureImporter(Module):
 
             # construct instance reference from import id pattern
             ref = "/".join([meta[p] for p in import_id_pattern if p in meta])
+
+            # NOTE: when initializing an Instance object, a random id attribute is generated.
+            #       in the absence of any other id meta field (e.g., sid, pid...) it wouuld make sense to use this id 
+            #       (e.g., for file-based imports like image.nii@instance@nifti)
+            #       However, in that case the id must be known prior to the instance creation. 
+            #       We therfore generate a random id for each file that matches a structure and populate it via meta['id']. 
+            #       In case an id is manually specified in the import structure, this will override the randomly generated id.
+            #       Working on a per-file basis, the same id is shared across all data/instance imports for that file. Hence, 
+            #       this only makes sense for the file-based instance import as described above and a more subtle aproach would be nice.
+            #       We use _instance aas the pseudo meta field.
 
             # outsource instace base directory (all instance related files will be organized in that directory)
             # warning if instance has no root directory but a data import path (e.g., file or dicom folder)
@@ -122,6 +128,7 @@ class FileStructureImporter(Module):
                 instances[ref] = Instance(path=path)
                 instances[ref].attr['_ref'] = ref
                 for k, v in meta.items():
+                    if k == '_instance': k = 'id'
                     instances[ref].attr[k] = v
 
         # create bundles
@@ -166,20 +173,19 @@ class FileStructureImporter(Module):
 
             path = s['path']
             meta = s['meta']
-            ftype_def = s['dtype'].upper()                          # FIXME: use ftype instaed of dtype for consistency
+            dtype_def = s['dtype']
 
             # ignore instance creations (done in previous step)
-            if ftype_def in ['INSTANCE', 'BUNDLE']:
+            if dtype_def.upper() in ['INSTANCE', 'BUNDLE']:
                 continue
 
             # TODO: optionally copy data into (newly created) instance dir?
             #       Nicer structure but likely adding complexity and not needed as imported files are considered read-only.
 
             # create data    
-            assert ftype_def in FileType.__members__, f"{ftype_def} not a valid file type."
-            ftype = FileType[ftype_def]
-            instance_data_type = DataType(ftype, Meta() + meta)
-            instance_data = InstanceData(path, instance_data_type)
+            dtype = DataType.fromString(dtype_def)
+            dtype.meta += {k: v for k, v in meta.items() if not k.startswith('_')}
+            instance_data = InstanceData(path, dtype)
 
             # append data
             if "_bundle" in meta:
@@ -193,7 +199,7 @@ class FileStructureImporter(Module):
             else:
                 # get instance
                 ref = "/".join([meta[p] for p in import_id_pattern if p in meta])
-                assert ref in instances, f"Error: instance {ref} not found."
+                assert ref in instances, f"Error: instance {ref} not found. \n" + "\n".join(instance for instance in instances)
                 instance = instances[ref]
 
                 # add data to instance
@@ -283,7 +289,7 @@ def scan_directory(start_dir: str, structures: List[str], excludes: List[str], m
                 continue
             
             # extract imports
-            imps = {s[0].split('@')[1] for s in matching_structures if '@' in s[0]}
+            imps = {s[0].split('@')[i] for s in matching_structures for i in range(1, s[0].count('@') + 1) if '@' in s[0]}
 
             # extend current meta data by extracted keys from current iteration level
             _meta: Dict[str, str] = {
@@ -346,7 +352,7 @@ def scan_directory(start_dir: str, structures: List[str], excludes: List[str], m
                                 break
                         
                         if '@' in group:                # import (within group evaluation)
-                            match_imps.append(group.split('@')[1])
+                            match_imps += group.split('@')[1:]
 
                     elif group.startswith('@'):         # import (outside of group evaluation, last overlapping statement)
                         assert group != '@instance', f"Error: regex instance import must be bound to a placeholder variable."
@@ -376,6 +382,10 @@ def scan_directory(start_dir: str, structures: List[str], excludes: List[str], m
         # stop or recurse
         stop = False
         if len(imps) > 0:    # if import statement found (@dtype) stop recursion and return current meta
+
+            # generate a random id
+            import_id = str(uuid.uuid4())
+
             for i, imp in enumerate(imps):
 
                 # print import stop
@@ -385,15 +395,20 @@ def scan_directory(start_dir: str, structures: List[str], excludes: List[str], m
 
                 # instance import
                 if imp == 'instance':
+                    instance_id = str(uuid.uuid4())
 
                     if os.path.isfile(os.path.join(start_dir, dir)) and verbose:
-                        print("> WARNING: instance import on file level. Instacnes need a base folder that must be created in that case.")
+                        print("> WARNING: instance import on file level. Instacnes need a base folder that must be created in that case. Random instance_id can be used as ref, set import_id: _instance in config.")
 
                     imports.append({
                         'path':     os.path.join(start_dir, dir),
-                        'meta':     _meta,
+                        'meta':    {'_instance': instance_id, **_meta},
                         'dtype':    'instance'
                     })
+                    _meta: Dict[str, str] = {
+                        **_meta,
+                        '_instance': instance_id
+                    }
 
                 # bundle import
                 elif imp == "" or imp == "bundle":
