@@ -15,6 +15,7 @@ import shutil
 
 from enum import Enum
 from mhubio.core import Config, Module, Instance, InstanceData, DataType, Meta, FileType, CT, DirectoryChain, IO
+import pydicom
 
 class InputDirStructure(Enum):
     """
@@ -27,7 +28,7 @@ class InputDirStructure(Enum):
 @IO.Config('source_dir', str, 'input_data', the="source input directory containing the (unsorted) dicom data")
 @IO.Config('import_dir', str, 'sorted_data', the="output directory where the imported (sorted / organized) dicom data will be placed")
 @IO.Config('sort_data', bool, True, the="flag to turn data sorting using dicomsort off if input data is sorted already")
-@IO.Config('meta', dict, CT.mdict, the="meta data used for every imported instance")
+@IO.Config('meta', dict, {'mod': '%Modality'}, the="meta data used for every imported instance")
 class DicomImporter(Module):
     """
     Import dicom data into instances after optionally sorting them.
@@ -70,16 +71,30 @@ class DicomImporter(Module):
 
         _ = subprocess.run(bash_command, check=True, text=True)
 
-    def getMeta(self, dicom_data: InstanceData) -> Meta:
+    def updateMeta(self, dicom_data: InstanceData) -> None:
 
-        # check if metadata contains dicom-placeholders
-        meta = self.meta.copy()
+        if not any(v.startswith('%') for v in dicom_data.type.meta.values()):
+            return
 
-        # replace placeholders
-        # ...
+        # pick first file
+        dicom_file = os.listdir(dicom_data.abspath)[0]
+        dicom_file_path = os.path.join(dicom_data.abspath, dicom_file)
 
-        # return
-        return Meta(**meta)
+        # load dicom meta data
+        ds = pydicom.read_file(dicom_file_path)
+
+        # update meta (lookup dicom placeholders starting with %)
+        meta_update = {}
+        for k, v in dicom_data.type.meta.items():
+            if v.startswith('%'):
+                dicom_field = v[1:]
+                if hasattr(ds, dicom_field):
+                    meta_update[k] = getattr(ds, dicom_field)
+                else:
+                    self.v(f">> dicom field not found: {dicom_field}")
+
+        # update meta of the dicom data
+        dicom_data.type.meta += meta_update
 
     def importSorted(self, sorted_dir: str) -> None:
         
@@ -100,6 +115,9 @@ class DicomImporter(Module):
             dicom_data_meta = self.meta.copy()
             dicom_data_type = DataType(FileType.DICOM, dicom_data_meta)
             dicom_data = InstanceData('dicom', dicom_data_type, instance)
+
+            # update meta with dicom placeholders
+            self.updateMeta(dicom_data)
 
             # confirm 
             if os.path.isdir(dicom_data.abspath):
@@ -153,6 +171,9 @@ class DicomImporter(Module):
         #  However, instead of copying the data, we could also just link it with an absolute path (especially if we notice any performance issues).
         shutil.copytree(input_dir, dicom_data.abspath)
 
+        # update meta with dicom placeholders
+        self.updateMeta(dicom_data)
+
         # confirm data is where we expect it to be
         if os.path.isdir(dicom_data.abspath):
             dicom_data.confirm()
@@ -184,6 +205,9 @@ class DicomImporter(Module):
             #  Hence, it makes sense to copy the input data to hava an transparent overview of all data relevant to an instance bundled together.
             #  However, instead of copying the data, we could also just link it with an absolute path (especially if we notice any performance issues).
             shutil.copytree(os.path.join(input_dir, sid), dicom_data.abspath)
+
+            # update meta with dicom placeholders
+            self.updateMeta(dicom_data)
 
             # confirm 
             if os.path.isdir(dicom_data.abspath):

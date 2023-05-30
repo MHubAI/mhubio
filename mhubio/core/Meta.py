@@ -35,6 +35,9 @@ class Meta:
 
     def items(self) -> List[Tuple[str, str]]:
         return [(k, v) for k, v in self.mdict.items()]
+    
+    def values(self) -> List[str]:
+        return list(self.mdict.values())
 
     # +
     def __add__(self, o: Union[Dict[str, str], List['Meta'], 'Meta']) -> 'Meta':
@@ -63,7 +66,7 @@ class Meta:
             if v == '*':
                 if k not in self.mdict:
                     return False
-            elif self[k] != v:
+            elif self[k].lower() != v.lower():
                 return False
         return True
 
