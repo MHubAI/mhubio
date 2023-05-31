@@ -109,7 +109,7 @@ class Config:
             print(f"WARNING: base config loaded.")
             self._config = {
                 'general': {
-                    'data_base_dir': '/data'
+                    'data_base_dir': '/app/data'
                 },
                 'modules': {}
             }

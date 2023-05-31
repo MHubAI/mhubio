@@ -69,7 +69,7 @@ class DataOrganizer(Module):
         Absolute path required. 
         Dynamic options:
             [random] -> random uuid4 string
-            [path] -> relative path of the datatype (<DataType>.path)
+            [path] -> relative path of the datatype (<DataType>.dc.path)
             [basename] -> basename of the datatype (os.path.basename(<DataType>.abspath))
             [filename] -> filename of the datatype (os.path.basename(<DataType>.abspath).split('.', 1)[0]))
             [filext] -> file extension of the datatype (os.path.basename(<DataType>.abspath).split('.', 1)[1]?)

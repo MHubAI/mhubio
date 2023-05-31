@@ -249,7 +249,6 @@ if __name__ == '__main__':
 
     # ensure that if a config file is provided, it exists
     if config_file is not None and not os.path.isfile(config_file):
-        #print(f"{f.cyan}Warning:{f.cend} The config file {f.fitalics}{config_file}{f.fnormal} does not exist.")
         print(f'{f.cyellow+f.fbold} Warning:{f.fnormal+f.cyellow} The provided config file {f.fitalics}{config_file}{f.fnormal+f.cyellow} does not exist.{f.cend}')
         sys.exit(0)
     
