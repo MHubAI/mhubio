@@ -12,7 +12,7 @@ Email:  leonard.nuernberg@maastrichtuniversity.nl
 """
 # TODO: support multi-i/o and batch processing on multiple instances
 
-from typing import List
+from typing import List, Optional
 import os, subprocess, shutil
 import SimpleITK as sitk, numpy as np
 from mhubio.core import Module, Instance, InstanceData, DataType, FileType, IO
@@ -39,7 +39,7 @@ class NNUnetRunner(Module):
     prob_map_segments: list
     roi: str
 
-    def export_prob_mask(self, nnunet_out_dir: str, ref_file: InstanceData, output_dtype: str = 'float32', structure_list: List[str] = []):
+    def export_prob_mask(self, nnunet_out_dir: str, ref_file: InstanceData, output_dtype: str = 'float32', structure_list: Optional[List[str]] = None):
         """
         Convert softmax probability maps to NRRD. For simplicity, the probability maps
         are converted by default to UInt8
@@ -54,6 +54,13 @@ class NNUnetRunner(Module):
         Outputs:
             This function [...]
         """
+
+        # initialize structure list
+        if structure_list is None:
+            if self.roi is not None:
+                structure_list = self.roi.split(',')
+            else:
+                structure_list = []
 
         # sanity check user inputs
         assert(output_dtype in ["uint8", "uint16", "float32"])      
