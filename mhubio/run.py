@@ -49,10 +49,12 @@ class f(str, Enum):
     chead       = '\033[95m'
     cyan        = '\033[96m'
     cgray       = '\033[30m'
+    cyellow     = '\033[93m'    
     cend        = '\033[0m'
     fitalics    = '\x1B[3m'
     funderline  = '\x1B[4m'
     fnormal     = '\x1B[0m'
+    fbold       = '\x1B[1m'
 
 def scan_local_modules() -> Dict[str, str]:
     base_dir = '/app/models'
@@ -62,6 +64,9 @@ def scan_local_modules() -> Dict[str, str]:
     for model_dir in os.listdir(base_dir):
         model_path = os.path.join(base_dir, model_dir)
         model_utils_path = os.path.join(model_path, 'utils')
+        
+        if not os.path.isdir(model_utils_path):
+            continue
 
         for module_file in os.listdir(model_utils_path):
             module_path = os.path.join(model_utils_path, module_file)
@@ -77,6 +82,10 @@ def scan_configurations() -> List[Dict]:
 
     for model_dir in os.listdir(root_dir):
         configs_path = os.path.join(root_dir, model_dir, 'config')
+
+        if not os.path.isdir(configs_path):
+            continue
+
         for config_file in os.listdir(configs_path):
             if config_file.endswith('.yml'):
                 config_path = os.path.join(configs_path, config_file)
@@ -181,12 +190,21 @@ def run(config_file: Optional[str] = None):
     # instantiate config
     config = Config(config_file=config_file)
 
+    # ensure the configuration is valid for stand-alone execution
+    if not 'execute' in config._config:
+        print(f'{f.cyellow+f.fbold} Warning:{f.fnormal+f.cyellow} No execution chain defined in the configuration file.{f.cend}')
+        return
+
     # parse the module list
     workflow = get_workflow(config._config['execute'])
 
     # sanity check
-    assert all([module[0] in import_paths for module in workflow]), \
-        "One or more modules are not supported. Please use a custom run.py script instead."
+    if not all([module[0] in import_paths for module in workflow]):
+        print(f'{f.cyellow+f.fbold} Warning:{f.fnormal+f.cyellow} One or more modules in the execution chain are not available. You may use a custom run script insead.{f.cend}')
+        for (m, _) in workflow:
+            if m not in import_paths:
+                print(f'{f.cgray}  - {m}{f.cend}')
+        return 
 
     # sequential execution
     for (class_name, model_config) in workflow:
@@ -206,7 +224,7 @@ if __name__ == '__main__':
     # interactive mode?
     interactive = '--non-interactive' not in sys.argv
 
-    # check if config file is provided
+    # check if a config file is provided via the --config argument
     config_file = None
     if '--config' not in sys.argv:
 
@@ -224,6 +242,16 @@ if __name__ == '__main__':
             configurations = scan_configurations()
             print_configurations(configurations)
             sys.exit(0)
+    else:
+        config_file_argv_index = sys.argv.index('--config')
+        if len(sys.argv) > config_file_argv_index + 1:
+            config_file = sys.argv[config_file_argv_index + 1]
+
+    # ensure that if a config file is provided, it exists
+    if config_file is not None and not os.path.isfile(config_file):
+        #print(f"{f.cyan}Warning:{f.cend} The config file {f.fitalics}{config_file}{f.fnormal} does not exist.")
+        print(f'{f.cyellow+f.fbold} Warning:{f.fnormal+f.cyellow} The provided config file {f.fitalics}{config_file}{f.fnormal+f.cyellow} does not exist.{f.cend}')
+        sys.exit(0)
     
     # cleanup
     if '--cleanup' in sys.argv:
