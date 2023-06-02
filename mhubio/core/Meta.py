@@ -72,8 +72,11 @@ class Meta:
 
     # []
     def __getitem__(self, key: str) -> str:
+        return self.getValue(key)
+    
+    def getValue(self, key: str, default: str = "") -> str:
         assert isinstance(key, str)
-        return self.mdict[key] if key in self.mdict else ""
+        return self.mdict[key] if key in self.mdict else default
 
     def __str__(self) -> str:
         return ":".join(["%s=%s"%(k, v) for k, v in self.mdict.items()])
