@@ -11,8 +11,9 @@ Email:  leonard.nuernberg@maastrichtuniversity.nl
 
 from typing import List
 from mhubio.core import Module, Instance, InstanceData, InstanceDataCollection, DataType, IO
-from mhubio.utils.ymldicomseg import buildSegmentJsonBySegId
-import os, subprocess, json
+import os, subprocess
+
+from segdb.tools import DcmqiDsegConfigGenerator
 
 @IO.Config('source_segs', List[DataType], ['nifti:mod=seg:roi=*', 'nrrd:mod=seg:roi=*'], factory=IO.F.list(DataType.fromString), the='target segmentation files to convert to dicomseg')
 @IO.Config('target_dicom', DataType, 'dicom:mod=ct', factory=DataType.fromString, the='dicom data all segmentations align to')
@@ -33,35 +34,6 @@ class DsegConverter(Module):
     json_config_path: str
     segment_id_meta_key: str
 
-    def generateJsonMeta(self, definition):
-
-        # json meta
-        json_meta = {
-            'BodyPartExamined': 'WHOLEBODY',
-            'ClinicalTrialCoordinatingCenterName': 'dcmqi',
-            'ClinicalTrialSeriesID': '0',
-            'ClinicalTrialTimePointID': '1',
-            'ContentCreatorName': 'MHub',
-            'ContentDescription': 'Image segmentation',
-            'ContentLabel': 'SEGMENTATION',
-            'InstanceNumber': '1',
-            'SeriesDescription': self.model_name,
-            'SeriesNumber': '42',
-            'segmentAttributes': []
-        }
-
-        # json meta present for each roi
-        segment_base_attributes = {
-            'SegmentAlgorithmType': 'AUTOMATIC',
-            'SegmentAlgorithmName': 'Platipy',
-        }
-
-        # generate json meta per file and segments
-        json_meta['segmentAttributes'] = [[{**buildSegmentJsonBySegId(roi, labelID + 1), **segment_base_attributes} for labelID, roi in enumerate(rois)] for rois in definition.values()]
-        file_list = list(definition.keys())
-
-        return json_meta, file_list
-
     @IO.Instance()
     @IO.Inputs("in_segs", IO.C("source_segs"), the="input data to convert to dicomseg")
     @IO.Input("in_dicom", IO.C("target_dicom"), the="input dicom data to convert to dicomseg")
@@ -77,17 +49,26 @@ class DsegConverter(Module):
 
         else:
 
-            # get ROI - file construct
-            roi_def = {in_seg.abspath: in_seg.type.meta[self.segment_id_meta_key].split(",") for in_seg in in_segs}
+            # generate json meta generator instance
+            generator = DcmqiDsegConfigGenerator(
+                model_name = self.model_name
+            )
 
-            # generate the json meta in a temp directory 
-            json_meta, file_list = self.generateJsonMeta(roi_def)
+            # extract and populate data 
+            for in_seg in in_segs:
+                generator.addItem(
+                    file = in_seg.abspath, 
+                    segment_ids = in_seg.type.meta[self.segment_id_meta_key].split(","),
+                    model_name = in_seg.type.meta.getValue('model'),
+                )
+
+            # store json in temp dir
             tmp_dir = self.config.data.requestTempDir('dseg_converter')
             json_config_path = os.path.join(tmp_dir, "temp-meta.json")
+            generator.save(config_file=json_config_path, overwrite=True)
 
-            # temporarily store json
-            with open(json_config_path, 'w') as f:
-                json.dump(json_meta, f)
+            # get file list (comma separated string)
+            file_list = ",".join(generator.getFileList())
 
             # create outdir if required
             # TODO: can we handle this during bundle creation or in IO decorator?
@@ -96,7 +77,7 @@ class DsegConverter(Module):
 
         # build command
         bash_command  = ["itkimage2segimage"]
-        bash_command += ["--inputImageList", ','.join(file_list)]
+        bash_command += ["--inputImageList", file_list]
         bash_command += ["--inputDICOMDirectory", in_dicom.abspath]
         bash_command += ["--outputDICOM", out_data.abspath]
         bash_command += ["--inputMetadata", json_config_path]
@@ -111,7 +92,3 @@ class DsegConverter(Module):
             _ = subprocess.run(bash_command, check = True, text = True)
         except Exception as e:
             self.v("Error while running dicomseg-conversion for instance " + str(instance) + ": " + str(e))
-
-        # check if output file was created
-        #if os.path.isfile(out_data.abspath):
-        #    out_data.confirm()
