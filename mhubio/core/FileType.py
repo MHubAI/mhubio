@@ -22,6 +22,8 @@ class FileType(Enum):
     TXT         = "txt"
     LOG         = "log"
     JSON        = "json"
+    MHA         = "mha"
+    TIFF        = "tiff"
 
     def __str__(self) -> str:
         return self.name
