@@ -199,6 +199,9 @@ class FileStructureImporter(Module):
             else:
                 # get instance
                 ref = "/".join([meta[p] for p in import_id_pattern if p in meta])
+                if ref not in instances:
+                    print("ref", ref)
+                    print("instances", instances)
                 assert ref in instances, f"Error: instance {ref} not found. \n" + "\n".join(instance for instance in instances)
                 instance = instances[ref]
 
@@ -289,7 +292,12 @@ def scan_directory(start_dir: str, structures: List[str], excludes: List[str], m
                 continue
             
             # extract imports
-            imps = {s[0].split('@')[i] for s in matching_structures for i in range(1, s[0].count('@') + 1) if '@' in s[0]}
+            # FIXME: using a set ensures uniqueness but causes arbitrary order, causing an error when data import occures before instance import for file-instance scenarios
+            #imps = {s[0].split('@')[i] for s in matching_structures for i in range(1, s[0].count('@') + 1) if '@' in s[0]}
+            imps = [s[0].split('@')[i] for s in matching_structures for i in range(1, s[0].count('@') + 1) if '@' in s[0]]
+
+            # make imps unique
+            imps = list(dict.fromkeys(imps))
 
             # extend current meta data by extracted keys from current iteration level
             _meta: Dict[str, str] = {
