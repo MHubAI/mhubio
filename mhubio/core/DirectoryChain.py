@@ -11,7 +11,7 @@ Email:  leonard.nuernberg@maastrichtuniversity.nl
 """
 
 from typing import Optional
-import os
+import os, re
 
 class DirectoryChain:
     """Directory chain (DC) is a recursive data structure that represents a path chain. 
@@ -55,6 +55,24 @@ class DirectoryChain:
             self.setBase("/")
         else:
             self.setBase("")
+
+    def makedirs(self, exist_ok: bool = True) -> None:
+
+        # check if abspath resolves to a file or directory
+        is_file = re.match(r'^.*[^\/]+\.[^\.]+$', self.abspath) is not None
+
+        # sanity checks
+        assert exist_ok or not os.path.exists(self.abspath) # path must not exist
+
+        # get base directory
+        base_dir = os.path.dirname(self.abspath) if is_file else self.abspath
+
+        # create base directory
+        os.makedirs(base_dir, exist_ok=True)
+
+        # sanity check
+        assert exist_ok or not is_file or not os.path.isfile(self.abspath) # file must not be created
+        assert os.path.isdir(base_dir) # base directory must exist / have been created
 
     @property
     def abspath(self) -> str:

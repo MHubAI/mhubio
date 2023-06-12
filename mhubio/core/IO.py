@@ -102,7 +102,7 @@ class IO:
                         func(self, instance, *args, **kwargs)    
                     except Exception as e:
                         # TODO: add logging, generate final report
-                        self.v(f"ERROR: Instance {str(instance)} failed with error {str(e)} in {traceback.format_exc()}")
+                        self.v(f"ERROR: {self.__class__.__name__} failed processing instance {str(instance)}: {str(e)} in {traceback.format_exc()}")
             wrapper._mhubio_ofunc = func._mhubio_ofunc if hasattr(func, '_mhubio_ofunc') else func          
             return wrapper
         return decorator
@@ -241,6 +241,8 @@ class IO:
 
     # NOTE: only works on single input. We might create a universal decorator that can detect wheather there is a single input data or a collection of inputs. 
     #       But for now I outsource the bundle creation to the output data creation which seems reasonable and simplifies the interface.
+
+    # NOTE: 2: In the scenario, where a model generates n files with known names and the @IO.Input operators are set to match these names, it might be easiest to create a bundle, then let the model output it's files into that bundle and define the @IO.Input operators linked to that bundle. The confirmation check then ensures wheather the files were found or not. This seems better than a copy instruction for those files (preventing hardcoding model output file names twice). Could this work for multiple inputs too? Check this with the Platipy use case.
     @staticmethod
     def Bundle(name: str, path: Optional[A[str]] = None, data: Optional[str] = None, the: Optional[str] = None) -> Callable[[Callable[Concatenate[T, 'Instance', P], None]], Callable[[T, 'Instance'], Any]]:
         raise IOError("Bundle decorator not yet supported")
