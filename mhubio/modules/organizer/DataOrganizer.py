@@ -11,17 +11,27 @@ Email:  leonard.nuernberg@maastrichtuniversity.nl
 
 from typing import Dict, Optional
 import os, shutil, uuid, re
-from mhubio.core import Config, Module, Instance, InstanceData, DataType, FileType, Meta
+from mhubio.core import Config, Module, Instance, InstanceData, DataType, DirectoryChain, IO
+from mhubio.utils.printing import f as pf
 
-
+@IO.Config('target_dir', str, 'output_data', the="target directory where the organized data will be placed. Relative paths are resolved relative to the directory set in general.data_base_dir.")
+@IO.Config('targets', list, [], the="list of targets to organize the data into")
+@IO.Config('require_data_confirmation', bool, True, the="flag if set, only confirmed files will be exported by the organizer.")
 class DataOrganizer(Module):
-    target: Dict[DataType, str] = {}
+
+    target_dir: str
+    targets: list
+    require_data_confirmation: bool
+
+    _targets: Dict[DataType, str] = {}
     set_file_permissions: bool 
 
     def __init__(self, config: Config, dry_run: bool = False, set_file_permissions: bool = False, **kwargs) -> None:
         super().__init__(config, **kwargs)
         self.dry = dry_run
         self.set_file_permissions = set_file_permissions
+
+        self.output_dc = DirectoryChain(path=self.target_dir, parent=self.config.data.dc)
 
         # import targets from config if defined
         self._importTargetsFromConfig()
@@ -46,9 +56,8 @@ class DataOrganizer(Module):
         """
 
         # automatically import targets from config if defined
-        targets = self.getConfiguration("targets")
-        if targets and isinstance(targets, list):
-            for target_definition in targets:
+        if self.targets and isinstance(self.targets, list):
+            for target_definition in self.targets:
                 try:
                     assert isinstance(target_definition, str), f"Definition must be a string, not {type(target_definition)}."
                     
@@ -77,13 +86,10 @@ class DataOrganizer(Module):
             [i:...] -> any attribute from instance id (<Instance>.attr[...])
             [d:...] -> any metadata from datatype (<DataType>.meta[...])
         """
-        self.target[type] = dir
+        self._targets[type] = dir
 
-    def task(self) -> None:
-        for instance in self.config.data.instances:
-            self.organize(instance)
-
-    def resolveTarget(self, target: str, data: InstanceData) -> Optional[str]:
+    @staticmethod
+    def resolveTarget(target: str, data: InstanceData) -> Optional[str]:
         vars = re.findall(r"\[(i:|d:)?([\w\_\-]+)\]", target)
 
         if len(vars) == 0:
@@ -118,30 +124,37 @@ class DataOrganizer(Module):
 
             return _target
 
-    def organize(self, instance: Instance) -> None:
+    @IO.Instance()
+    def task(self, instance: Instance) -> None:
         
-        self.v("organizing instance", str(instance))
+        self.v(f'{pf.chead+pf.fbold}organizing instance {pf.fnormal+pf.fitalics}{str(instance)}{pf.fnormal+pf.cend}')
+        self.v(f'{pf.cgray}target directory: {self.output_dc.abspath}{pf.cend}')
         
-        for (type, target) in self.target.items():
+        for (type, target) in self._targets.items():
 
-            self.v(f"> {type.toString()} -> {target}")
+            self.v(f"\n{pf.cyellow}{type.toString()} --> {target}{pf.cend}")
             
             if not instance.hasType(type):
-                self.v(f"type {str(type)} not in instance. all types are:")
+                self.v(f"Type {str(type)} not in instance.")
+                self.v(f'{pf.cgray}Available types:{pf.cend}')
                 for d in instance.data:
-                    self.v("> ", str(d.type), d.abspath)
+                    self.v(f'> {pf.cgray}{str(d.type)} ({d.abspath}){pf.cend}')
                 continue
 
             # get input file path
-            inp_datas = instance.data.filter(type, confirmed_only=self.getConfiguration("require_data_confirmation", True))
+            inp_datas = instance.data.filter(type, confirmed_only=self.require_data_confirmation)
+            self.v(f'{pf.cgray}Found {len(inp_datas)} matches.{pf.cend}')
             for inp_data in inp_datas:
 
                 inp_data_target = self.resolveTarget(target, inp_data)
                 if not inp_data_target:
                     continue                
 
+                # assemble the abs path of the resolved file target
+                out_path = os.path.join(self.output_dc.abspath, inp_data_target)
+
                 # create target directory if required
-                inp_data_target_dir = os.path.dirname(inp_data_target)
+                inp_data_target_dir = os.path.dirname(out_path)
                 if not self.dry and not os.path.isdir(inp_data_target_dir):
                     os.makedirs(inp_data_target_dir)
                     if self.set_file_permissions: os.chmod(inp_data_target_dir, 0o777)
@@ -149,31 +162,37 @@ class DataOrganizer(Module):
 
                 # add to instance
                 # TODO: the data is now outside of our managed file structure but should still be linked to the instance. For now, just set the base path. However, this will cause type duplications thus not yet compatible with conversion modules applied afterwards. However, we've to decide if we enforce all conversion steps to only operate on our internal data structure.
-                out_data = InstanceData(inp_data_target, type)
-                out_data.dc.makeEntrypoint()
-                instance.addData(out_data) # TODO: either remove dry mode or handle 
+                #out_data = InstanceData(inp_data_target, type)
+                #out_data.dc.makeEntrypoint()
+                #instance.addData(out_data) # TODO: either remove dry mode or handle 
 
                 # copy
                 if not self.dry:
                     # copy directory or file
                     if os.path.isdir(inp_data.abspath):
-                        shutil.copytree(inp_data.abspath, out_data.abspath)
+                        shutil.copytree(inp_data.abspath, out_path)
+                        self.v(f'copied directory {inp_data.abspath} to {out_path}')
                     elif os.path.isfile(inp_data.abspath):
-                        shutil.copyfile(inp_data.abspath, out_data.abspath)
+                        shutil.copyfile(inp_data.abspath, out_path)
+                        self.v(f'copied file {inp_data.abspath} to {out_path}')
                     else:
-                        raise FileNotFoundError(f"Could not copy {inp_data.abspath} to {out_data.abspath}. File not found.")
+                        raise FileNotFoundError(f"Could not copy {inp_data.abspath} to {out_path}. File not found.")
                     
                     # set permissions to 777 (iteratively for directories)
                     if self.set_file_permissions: 
-                        if os.path.isfile(out_data.abspath):
-                            os.chmod(out_data.abspath, 0o777)
-                        elif os.path.isdir(out_data.abspath):
-                            for dirpath, _, filenames in os.walk(out_data.abspath):
+                        if os.path.isfile(out_path):
+                            os.chmod(out_path, 0o777)
+                        elif os.path.isdir(out_path):
+                            for dirpath, _, filenames in os.walk(out_path):
                                 os.chmod(dirpath, 0o777)
                                 for filename in filenames:
                                     os.chmod(os.path.join(dirpath, filename), 0o777)
+                        self.v(f'set permissions to 777 for {out_path}')
 
                 else:
-                    print(f"dry copy {inp_data.abspath} to {out_data.abspath}")
+                    print(f"dry copy {inp_data.abspath} to {out_path}")
+
+        # end
+        self.v()
 
                 
