@@ -23,6 +23,7 @@ from segdb.tools import DcmqiDsegConfigGenerator
 @IO.Config('model_name', str, 'MHub-Model', the="model name populated in the dicom seg SeriesDescription attribute")
 @IO.Config('json_config_path', str, None, the='path to the dicomseg json config file')    
 @IO.Config('segment_id_meta_key', str, 'roi', the='meta key used to identify the roi in the dicomseg json config file')
+@IO.Config('body_part_examined', str, 'WHOLEBODY', the='body part examined by the model (available values: https://dicom.nema.org/medical/dicom/current/output/chtml/part16/chapter_L.html)')
 class DsegConverter(Module):
 
     source_segs: List[DataType]
@@ -33,6 +34,7 @@ class DsegConverter(Module):
     model_name: str
     json_config_path: str
     segment_id_meta_key: str
+    body_part_examined: str
 
     @IO.Instance()
     @IO.Inputs("in_segs", IO.C("source_segs"), the="input data to convert to dicomseg")
@@ -51,7 +53,8 @@ class DsegConverter(Module):
 
             # generate json meta generator instance
             generator = DcmqiDsegConfigGenerator(
-                model_name = self.model_name
+                model_name = self.model_name,
+                body_part_examined = self.body_part_examined,
             )
 
             # extract and populate data 
@@ -68,7 +71,7 @@ class DsegConverter(Module):
             generator.save(config_file=json_config_path, overwrite=True)
 
             # get file list (comma separated string)
-            file_list = ",".join(generator.getFileList())
+            file_list = generator.getFileList()
 
             # create outdir if required
             # TODO: can we handle this during bundle creation or in IO decorator?
@@ -77,18 +80,15 @@ class DsegConverter(Module):
 
         # build command
         bash_command  = ["itkimage2segimage"]
-        bash_command += ["--inputImageList", file_list]
+        bash_command += ["--inputImageList", ",".join(file_list)]
         bash_command += ["--inputDICOMDirectory", in_dicom.abspath]
         bash_command += ["--outputDICOM", out_data.abspath]
         bash_command += ["--inputMetadata", json_config_path]
 
         # add skip empty slices flag
-        if self.c["skip_empty_slices"] == True:
+        if self.skip_empty_slices == True:
             bash_command += ["--skip"]
 
         # run command
-        try: 
-            self.v(">> run: ", " ".join(bash_command))
-            _ = subprocess.run(bash_command, check = True, text = True)
-        except Exception as e:
-            self.v("Error while running dicomseg-conversion for instance " + str(instance) + ": " + str(e))
+        self.v(">> run: ", " ".join(bash_command))
+        _ = subprocess.run(bash_command, check = True, text = True)
