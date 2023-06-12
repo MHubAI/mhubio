@@ -35,6 +35,9 @@ import_paths = {
 
     'DataOrganizer': 'mhubio.modules.organizer.DataOrganizer',
 
+    'JsonSegExporter': 'mhubio.modules.exporter.JsonSegExporter',
+
+    'DummyRunner': 'mhubio.modules.runner.DummyRunner',
     'NNUnetRunner': 'mhubio.modules.runner.NNUnetRunner'
 }
 
