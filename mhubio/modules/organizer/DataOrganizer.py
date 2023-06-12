@@ -48,7 +48,7 @@ class DataOrganizer(Module):
         # automatically import targets from config if defined
         targets = self.getConfiguration("targets")
         if targets and isinstance(targets, list):
-            for target_definition in self.c["targets"]:
+            for target_definition in targets:
                 try:
                     assert isinstance(target_definition, str), f"Definition must be a string, not {type(target_definition)}."
                     
