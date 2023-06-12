@@ -20,6 +20,12 @@ class InstanceDataBundle(DirectoryChainInterface):
         parent = self.instance if not self._bundle else self._bundle
         super().__init__(path=ref, base=None, parent=parent.dc)
 
+    def __eq__(self, o: 'InstanceDataBundle') -> bool:
+        """
+        The similarity of directory bundles is determined by the fact that they share an identical instance object and resolve to the same absolute path. So if you create multiple bundle objects for the same data/instances with the same ref string, different objects are created, but we treat them as identical because they all resolve to the same path.
+        """
+        return self.instance == o.instance and self.abspath == o.abspath
+
     def __str__(self) -> str:
         s = f"<B:{self.abspath}"
         if self.dc.base: s+= f" (base: {self.dc.base})"
