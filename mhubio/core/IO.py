@@ -1,7 +1,7 @@
 
 from typing import TypeVar, Callable, Any, Optional, Union, Type, List, Dict
 from typing_extensions import ParamSpec, Concatenate, get_origin
-from mhubio.core import Module, Instance, InstanceData, InstanceDataCollection, DataType, Meta
+from mhubio.core import Module, Instance, InstanceData, InstanceDataCollection, DataType, Meta, DataTypeQuery
 from inspect import signature
 import os, traceback
 
@@ -10,6 +10,7 @@ T = TypeVar('T', bound='Module')
 V = TypeVar('V')
 W = TypeVar('W')
 A = Union[V, Callable[[Module], V]]
+Aopt = Optional[Union[V, Callable[[Module], V]]]
 P = ParamSpec("P")
 
 # custom exceptions
@@ -28,6 +29,16 @@ def check_signature(func: Callable[..., Any], sig: Dict[str, type]):
         if not ofunc_sig.parameters[key].annotation == value:
             raise IOError(f"Parameter '{key}' of function '{func._mhubio_ofunc.__name__}' must be of type '{value}' but is of type '{ofunc_sig.parameters[key].annotation}' instead.")
 
+def resolve_dtq(self: Module, func: Callable[..., Any], name: str, dtype: Aopt[str] = None) -> str:
+    if dtype is None:
+        assert hasattr(self, '_mhubio_configinput_' + name), \
+            f"@IO.Input wrapper on Method {self.__class__.__name__}.{(func._mhubio_ofunc if hasattr(func, '_mhubio_ofunc') else func).__name__}(..) has no dtype set and no matching @IO.ConfigInput wrapper with name '{name}' found on Class {self.__class__.__name__}."
+        return getattr(self, '_mhubio_configinput_' + name)()
+    elif callable(dtype):
+        return dtype(self) 
+    else:
+        return dtype
+
 # factory tools
 class F:
     @staticmethod
@@ -45,9 +56,15 @@ class IO:
     # dy
     @staticmethod
     def C(key: str, type: Optional[Type[V]] = Any) -> Callable[[Module], V]:
-        def callable(self: Module) -> V:
+        def c(self: Module) -> V:
             return getattr(self, key)
-        return callable
+        return c
+    
+    @staticmethod
+    def CP(*fns: Union[str, Callable[[Module], Any]]) -> Callable[[Module], str]:
+        def c(self: Module) -> str:
+            return ''.join(str(fn(self) if callable(fn) else fn for fn in fns))
+        return c
 
     @staticmethod
     def IF(key: str, if_true: V, if_false: V) -> Callable[[Module], V]:
@@ -72,7 +89,7 @@ class IO:
 
             # getter: class attribute > config > default
             def getAttr(self: T, attr_name=name) -> V:
-                clsattr = "_configurable__" + attr_name
+                clsattr = "_mhubio_configurable__" + attr_name
                 if not hasattr(self, clsattr):
                     #f = factory or type.from_config if isinstance(type, Registrable) else lambda x: x
                     setattr(self, clsattr, factory(self.getConfiguration(attr_name, default)))
@@ -82,7 +99,7 @@ class IO:
             def setAttr(self: T, value: V, attr_name=name):
                 if not isinstance(value, get_origin(type) or type):
                     raise IOError(f"Configurable attribute must be of type {type}")
-                setattr(self, "_configurable__" + attr_name, value)
+                setattr(self, "_mhubio_configurable__" + attr_name, value)
 
             prop: property = property(getAttr, setAttr)
             setattr(dcls, name, prop)
@@ -91,6 +108,51 @@ class IO:
             return dcls
         
         return wrapper
+
+    @classmethod
+    def ConfigInput(cls: Type['IO'], name: str, default: str, class_attribute: bool = False, the: Optional[str] = None) -> Callable[[Type[T]], Type[T]]:
+        
+        # wrapper
+        def wrapper(dcls: Type[T]) -> Type[T]:
+
+            # assert the class has the specified attibute
+            if class_attribute and not name in dcls.__annotations__: 
+                raise IOError(f"Class does not have attribute {name}")
+            
+            if class_attribute and dcls.__annotations__[name] != DataTypeQuery: 
+                raise IOError("Configurable attribute must be of type DataTypeQuery")
+            
+            if default is not None and not isinstance(default, str): 
+                raise IOError("Default value must be of type str")
+
+            # getter: class attribute > config > default
+            def getAttr(self: T, attr_name=name) -> DataTypeQuery:
+                clsattr = "_mhubio_configurable__" + attr_name
+                
+                if not hasattr(self, clsattr):
+                    setattr(self, clsattr, DataTypeQuery(self.getConfiguration(attr_name, default)))
+                return getattr(self, clsattr)
+
+            # setter
+            def setAttr(self: T, value: DataTypeQuery, attr_name=name):
+                if not isinstance(value, get_origin(type) or type):
+                    raise IOError(f"Configurable attribute must be of type {type}")
+                setattr(self, "_mhubio_configurable__" + attr_name, value)
+
+            if class_attribute:
+                prop: property = property(getAttr, setAttr)
+                setattr(dcls, name, prop)
+
+            # getter for @IO.Input 
+            #   we won't reuse prop here to minimize confusion, also it's better to have prop optional 
+            #   as it's barely needed and mhubio is less used in python scripts anyhow
+            setattr(dcls, "_mhubio_configinput_" + name, getAttr)
+
+            # return class with updated getter and setter for property
+            return dcls
+        
+        return wrapper
+    
 
     @staticmethod
     def Instance() -> Callable[[Callable[Concatenate[T, Instance, P], None]], Callable[[T], None]]:
@@ -108,11 +170,11 @@ class IO:
         return decorator
     
     @staticmethod
-    def Input(name: str, dtype: A[str], the: Optional[str] = None) -> Callable[[Callable[Concatenate[T, 'Instance', P], None]], Callable[[T, 'Instance'], None]]:
+    def Input(name: str, dtype: Aopt[str] = None, the: Optional[str] = None) -> Callable[[Callable[Concatenate[T, 'Instance', P], None]], Callable[[T, 'Instance'], None]]:
         def decorator(func: Callable[Concatenate[T, Instance, P], None]) -> Callable[[T, Instance], None]:
             check_signature(func, {name: InstanceData})
             def wrapper(self: T, instance: Instance, *args: P.args, **kwargs: P.kwargs) -> None:
-                _dtype = dtype(self) if callable(dtype) else dtype
+                _dtype = resolve_dtq(self, func, name, dtype)
                 kwargs[name] = instance.data.first(_dtype)
                 func(self, instance, *args, **kwargs)
             wrapper._mhubio_ofunc = func._mhubio_ofunc if hasattr(func, '_mhubio_ofunc') else func   
@@ -120,11 +182,11 @@ class IO:
         return decorator
 
     @staticmethod
-    def Inputs(name: str, dtype: A[str], the: Optional[str] = None) -> Callable[[Callable[Concatenate[T, 'Instance', P], None]], Callable[[T, 'Instance'], None]]:
+    def Inputs(name: str, dtype: Aopt[str] = None, the: Optional[str] = None) -> Callable[[Callable[Concatenate[T, 'Instance', P], None]], Callable[[T, 'Instance'], None]]:
         def decorator(func: Callable[Concatenate[T, Instance, P], None]) -> Callable[[T, Instance], None]:
             check_signature(func, {name: InstanceDataCollection})
             def wrapper(self: T, instance: Instance, *args: P.args, **kwargs: P.kwargs) -> None:
-                _dtype = dtype(self) if callable(dtype) else dtype
+                _dtype = resolve_dtq(self, func, name, dtype)
                 kwargs[name] = instance.data.filter(_dtype)
                 func(self, instance, *args, **kwargs)
             wrapper._mhubio_ofunc = func._mhubio_ofunc if hasattr(func, '_mhubio_ofunc') else func   
@@ -159,6 +221,9 @@ class IO:
 
                 # create instance data
                 out_data = InstanceData(path=_path, type=out_data_type, instance=instance, bundle=ref_bundle, data=ref_data, auto_increment=auto_increment)
+
+                # make sure directory chain exist
+                out_data.dc.makedirs()
 
                 # call wrapped function
                 kwargs[name] = out_data
