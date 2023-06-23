@@ -1,6 +1,7 @@
 from .Config import Config
 from .DataHandler import DataHandler
 from .DataType import DataType
+from .DataTypeQuery import DataTypeQuery
 from .DirectoryChain import DirectoryChain, DirectoryChainInterface
 from .FileType import FileType
 from .Instance import Instance, UnsortedInstance, SortedInstance

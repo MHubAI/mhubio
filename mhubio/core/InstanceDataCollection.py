@@ -12,6 +12,7 @@ Email:  leonard.nuernberg@maastrichtuniversity.nl
 from typing import Optional, Union, Dict, List, Tuple, Any
 from .InstanceData import InstanceData
 from .DataType import DataType
+from .DataTypeQuery import DataTypeQuery
 from .FileType import FileType
 from .Meta import Meta
 from .Error import MHubMissingDataError
@@ -54,9 +55,16 @@ class InstanceDataCollection:
     def filterByString(cls, pool: List['InstanceData'], ref_type: str, confirmed_only: bool = True) -> List['InstanceData']:
         return cls.filterByDataType(pool, DataType.fromString(ref_type), confirmed_only)
 
-    def filter(self, ref_types: Union[DataType, str, List[DataType], List[str]], confirmed_only: bool = False) -> 'InstanceDataCollection':
-        if isinstance(ref_types, str):
-            ref_types = [ref_types]
+    def filter(self, ref_types: Union[DataType, str, List[DataType], List[str], DataTypeQuery], confirmed_only: bool = False) -> 'InstanceDataCollection':
+        #if isinstance(ref_types, list) or isinstance(ref_types, DataType): 
+        #    print("\033[95mDEPRECATION WARNING: InstanceDataCollection.filter() should be called with a DataTypeQuery instance or DataTypeQuery compatible string.\033[0m")
+
+        if isinstance(ref_types, DataTypeQuery):
+            return InstanceDataCollection([d for d in self._data if (d.confirmed or not confirmed_only) and ref_types.exec(d.type)])
+        elif isinstance(ref_types, str):
+            dtq = DataTypeQuery(ref_types)
+            return InstanceDataCollection([d for d in self._data if (d.confirmed or not confirmed_only) and dtq.exec(d.type)])
+            #ref_types = [ref_types]
         elif isinstance(ref_types, DataType):
             ref_types = [ref_types]
         
@@ -76,7 +84,7 @@ class InstanceDataCollection:
             raise MHubMissingDataError(f"Requested data (index {i}) does not exist.")
         return self._data[i]
 
-    def first(self, ref_types: Optional[Union[DataType, str, List[DataType], List[str]]] = None, confirmed_only: bool = False) -> InstanceData:
+    def first(self, ref_types: Optional[Union[DataType, str, List[DataType], List[str], DataTypeQuery]] = None, confirmed_only: bool = False) -> InstanceData:
         if ref_types is not None:
             idc = self.filter(ref_types, confirmed_only)
         else:
