@@ -57,8 +57,14 @@ class JsonSegExporter(Module):
                     # get rois
                     rois = rois_def.split(',')
 
+                    # resolve target
+                    tar_res = DataOrganizer.resolveTarget(tar_def, in_data)
+
+                    if tar_res is None:
+                        raise Exception(f"Failed to resolve target {tar_def} for {str(in_data)} {in_data.abspath}")
+
                     # construct path
-                    in_data_path = os.path.join(self.target_dir, DataOrganizer.resolveTarget(tar_def, in_data))
+                    in_data_path = os.path.join(self.target_dir, tar_res)
 
                     # construct json
                     jseg.append({
