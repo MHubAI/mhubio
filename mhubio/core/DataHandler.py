@@ -10,7 +10,7 @@ Email:  leonard.nuernberg@maastrichtuniversity.nl
 """
 
 from typing import List, Dict, Optional
-from .DirectoryChain import DirectoryChainInterface
+from .DirectoryChain import DirectoryChainInterface, DirectoryChain
 from .DataType import DataType
 import uuid, os
 
@@ -66,6 +66,84 @@ class DataHandler(DirectoryChainInterface):
         # return
         return path
 
+    def export_yml(self, path: str) -> None:
+        instances = []
+        for instance in self.instances:
+            instance_dict = {
+                'attr': instance.attr,
+                'dc': {
+                    'path': instance.dc.path,
+                    'base': instance.dc.base
+                },
+                'files': []
+            }
+            for data in instance.data:
+                files_dict = {
+                    'path': data.dc.path,
+                    'type': data.type.toString(),
+                    'has_bundle': 'yes' if data.bundle else 'no',
+                    'bundle': None,
+                    'confirmed': data.confirmed,
+                    'dc': data.dc.asDict()
+                }
+
+                if data.bundle:
+                    files_dict['bundle'] = {
+                        'path': data.bundle.abspath,
+                        'dc': data.bundle.dc.asDict()
+                    }
+
+                instance_dict['files'].append(files_dict)
+            instances.append(instance_dict)
+
+        #
+        import yaml
+        with open(path, 'w') as f:
+            yaml.dump(instances, f)
+
+    def import_yml(self, path: str, check_files=True, confirm_files=False) -> None:
+        from mhubio.core import Instance, InstanceData, DataType
+        
+        # read yml
+        import yaml
+        with open(path, 'r') as f:
+            instances = yaml.load(f, Loader=yaml.FullLoader)
+
+        # clean instances
+        self.instances = []
+
+        # create instances
+        for instance in instances:
+
+            # create instance
+            i = Instance(path=instance['dc']['path'])
+            i.attr = instance['attr']
+            self.addInstance(i)
+
+            # add data
+            for files in instance['files']:
+
+                # bundle
+                b = None
+                if files['bundle']:
+                    b = InstanceDataBundle(files['bundle']['path'], instance=i)
+                    b.dc = DirectoryChain.fromDict(files['bundle']['dc'])
+
+                # data
+                d = InstanceData(files['path'], DataType.fromString(files['type']), bundle=b, instance=i)
+                
+                # confirm
+                if confirm_files:
+                    if os.path.exists(d.abspath):
+                        d.confirm()
+                        
+                elif files['confirmed']:
+
+                    if check_files:
+                        assert os.path.exists(d.abspath), f"Error: file {d.abspath} is confirmed but does not exist."
+
+                    d.confirm()
+
     def printInstancesOverview(self, level: str = "data+meta"):
         assert level in ["data", "meta", "data+meta"]
         for instance in self.instances:
@@ -79,3 +157,4 @@ class DataHandler(DirectoryChainInterface):
 
 # avoiding circular imports
 from .Instance import Instance, SortedInstance, UnsortedInstance
+from .InstanceDataBundle import InstanceDataBundle

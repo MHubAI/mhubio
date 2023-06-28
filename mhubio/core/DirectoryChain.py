@@ -74,6 +74,17 @@ class DirectoryChain:
         assert exist_ok or not is_file or not os.path.isfile(self.abspath) # file must not be created
         assert os.path.isdir(base_dir) # base directory must exist / have been created
 
+    def asDict(self) -> dict:
+        return {
+            "path": self.path,
+            "base": self.base,
+            "parent": self.parent.asDict() if self.parent is not None else None
+        }
+    
+    @classmethod
+    def fromDict(cls, d: dict) -> 'DirectoryChain':
+        return cls(d["path"], d["base"], cls.fromDict(d["parent"]) if d["parent"] is not None else None)
+
     @property
     def abspath(self) -> str:
         if self.base is not None:
