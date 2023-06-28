@@ -10,9 +10,9 @@ Email:  leonard.nuernberg@maastrichtuniversity.nl
 """
 
 from enum import Enum
-from typing import List
+from typing import List, Dict, Any
 
-from mhubio.core import Module, Instance, InstanceDataCollection, InstanceData, DataType, FileType, CT
+from mhubio.core import Module, Instance, InstanceDataCollection, InstanceData, DataType, FileType
 from mhubio.core.IO import IO
 
 import os, subprocess
@@ -26,7 +26,7 @@ class NiftiConverterEngine(Enum):
 @IO.Config('allow_multi_input', bool, False, the='allow multiple input files')
 @IO.Config('targets', List[DataType], ['dicom:mod=ct', 'nrrd:mod=ct'], factory=IO.F.list(DataType.fromString), the='target data types to convert to nifti')
 @IO.Config('bundle_name', str, 'nifti', the="bundle name converted data will be added to")
-@IO.Config('converted_file_name', str, '[basename].nii.gz', the='name of the converted file')
+@IO.Config('converted_file_name', str, '[filename].nii.gz', the='name of the converted file')
 @IO.Config('overwrite_existing_file', bool, False, the='overwrite existing file if it exists')
 #@IO.Config('wrap_output', bool, False, the='Wrap output in bundles. Required, if multiple input data is allowed that is not yet separated into distinct bundles.')
 class NiftiConverter(Module):
@@ -55,7 +55,7 @@ class NiftiConverter(Module):
         #return
 
         # set input and output paths later passed to plastimatch
-        convert_args_ct = {
+        convert_args_ct: Dict[str, Any] = {
             "input" : in_data.abspath,
             "output-img" : out_data.abspath
         }
@@ -159,3 +159,11 @@ class NiftiConverter(Module):
 
                 # for nrrd files use plastimatch
                 self.plastimatch(instance, in_data, out_data, log_data)
+
+            elif in_data.type.ftype == FileType.MHA:
+
+                # for mha files use plastimatch
+                self.plastimatch(instance, in_data, out_data, log_data)
+
+            else:
+                raise ValueError(f"CONVERT ERROR: unsupported file type {in_data.type.ftype}.")
