@@ -32,10 +32,12 @@ import_paths = {
     'NiftiConverter2': 'mhubio.modules.convert.NiftiConverter2',
     'NrrdConverter': 'mhubio.modules.convert.NrrdConverter',
     'DsegConverter': 'mhubio.modules.convert.DsegConverter',
+    'MhaConverter': 'mhubio.modules.convert.MhaConverter',
 
     'DataOrganizer': 'mhubio.modules.organizer.DataOrganizer',
 
     'JsonSegExporter': 'mhubio.modules.exporter.JsonSegExporter',
+    'ReportExporter': 'mhubio.modules.exporter.ReportExporter',
 
     'DummyRunner': 'mhubio.modules.runner.DummyRunner',
     'NNUnetRunner': 'mhubio.modules.runner.NNUnetRunner'
@@ -79,7 +81,7 @@ def scan_local_modules() -> Dict[str, str]:
 
     return local_import_paths
 
-def scan_configurations() -> List[Dict]:
+def scan_configurations() -> List[Dict[str, str]]:
     root_dir = '/app/models'
     configurations = []
 
@@ -101,6 +103,7 @@ def scan_configurations() -> List[Dict]:
 
                 configurations.append({
                     'model': model_dir,
+                    'name': os.path.splitext(config_file)[0],
                     'config': config_path,
                     'description': config['general']['description'] if 'description' in config['general'] else 'n/a'
                 })
@@ -115,7 +118,7 @@ def print_configurations(configurations: List[Dict], selection: int = 0, interac
         print(f"     {f.cgray+f.fitalics}{config['description']}{f.fnormal}")
         print(f"     {f.cgray}{config['config']}{f.cend}\n")
 
-def interactive_routine():
+def interactive_routine(configurations: List[Dict[str, str]]):
     # check support
     try:
         import tty, termios
@@ -143,9 +146,7 @@ def interactive_routine():
             if k != '': 
                 break
         return ord(k)
-    
-    # load available configurations
-    configurations = scan_configurations()
+
 
     # display configurations in interactive mode
     selection = 0
@@ -175,6 +176,79 @@ def cleanup():
     shutil.rmtree("/app/tmp", ignore_errors=True)
     shutil.rmtree("/app/data/output_data", ignore_errors=True)
     shutil.rmtree("/app/data/imported_instances", ignore_errors=True)
+
+def get_config_path(configurations: List[Dict[str, str]]) -> Optional[str]:
+
+    # if config file is specified esplicitly, we return it
+    if '--config' in sys.argv:
+        config_file_argv_index = sys.argv.index('--config')
+        if len(sys.argv) > config_file_argv_index + 1:
+            return sys.argv[config_file_argv_index + 1]
+
+    # check if model is defined or there is only one model present
+    models = list(set(c['model'] for c in configurations))
+    model = None
+
+    if len(models) == 1:
+        model = models[0]
+
+        # inform the user that there is just one model and it was selected automatically, so --model will be ignored. However, we'll clean up the commandline in the interactive routine so...
+        if '--model' in sys.argv:
+            print(f"{f.cyellow+f.fbold}Warning{f.cend+f.fnormal}: There is only one model present in this container, so the --model argument will be ignored. The model '{model}' will be used.")
+
+    elif '--model' in sys.argv:
+        model_argv_index = sys.argv.index('--model')
+        if len(sys.argv) > model_argv_index + 1:
+            model = sys.argv[model_argv_index + 1]
+        
+        # ensure that if --model is used, a mdoel name is specified
+        if model is None:
+            print(f"{f.chead+f.fbold}Error{f.cend+f.fnormal}: You need to specify a model name right after the --model argument.")
+            sys.exit(0)
+
+        # ensure that if a model is specified, it is present in the container
+        if model is not None and not model in models:
+            print(f"{f.chead+f.fbold}Error{f.cend+f.fnormal}: The specified model '{model}' was not found in this container.")
+            sys.exit(0)
+    
+    else:
+        print(f"{f.chead+f.fbold}Error{f.cend+f.fnormal}: Multiple models found but no model specified. Use --model $model_name to specify the model where we will search for workflows (configuration files).")
+        print(f"Available models: {', '.join(models)}")
+        sys.exit(0)
+    
+
+    # check if workflow is defined
+    assert model is not None
+    workflows = [c['name'] for c in configurations if c['model'] == model]
+    workflow = None
+
+    if '--workflow' in sys.argv:
+        workflow_argv_index = sys.argv.index('--workflow')
+        if len(sys.argv) > workflow_argv_index + 1:
+            workflow = sys.argv[workflow_argv_index + 1]
+            
+        # ensure that if --workflow is used, a workflow name is specified
+        if workflow is None:
+            print(f"{f.chead+f.fbold}Error{f.cend+f.fnormal}: You need to specify a workflow name right after the --workflow argument.")
+            sys.exit(0)
+
+        # workflow 'config' and 'default' are used synonymously.
+        # TODO: we could check if there are two workflows with either names present but we better forbid using 'config' as a name in the future and encourage the use of 'default' instead.
+
+        if workflow == 'default' and 'config' in workflows:
+            workflow = 'config'
+
+        # ensure that if a workflow is specified, it is present in the container
+        if workflow is not None and not workflow in workflows:
+            print(f"{f.chead+f.fbold}Error{f.cend+f.fnormal}: The specified workflow '{workflow}' was not found in this container.")
+            sys.exit(0)
+
+        # build config path
+        assert model is not None and workflow is not None
+        return f'/app/models/{model}/config/{workflow}.yml'
+
+    # return None if no configuration is found
+    return None
 
 def get_workflow(execute_chain: List[Union[str, Dict]]) -> List[Tuple[str, Dict]]:
     workflow = []
@@ -210,7 +284,7 @@ def run(config_file: Optional[str] = None):
         return 
 
     # sequential execution
-    for (class_name, model_config) in workflow:
+    for i, (class_name, model_config) in enumerate(workflow):
 
         mimport = importlib.import_module(import_paths[class_name])
         module: Type[Module] = getattr(mimport, class_name)
@@ -222,38 +296,47 @@ def run(config_file: Optional[str] = None):
             **kwargs
         ).execute()
 
+        # export file handler yml 
+        if '--export-file-handler' in sys.argv:
+            if not os.path.exists('/app/data/debug'):
+                os.makedirs('/app/data/debug')
+            config.data.export_yml(f'/app/data/debug/file_handler_{i}.yml')
+
 if __name__ == '__main__':
 
     # interactive mode?
     interactive = '--non-interactive' not in sys.argv
 
-    # check if a config file is provided via the --config argument
-    config_file = None
-    if '--config' not in sys.argv:
+    # scan configurations
+    configurations = scan_configurations()
 
-        print('\nPlease provide a config file using the --config flag.')
+    # get config file (if provided by one of the supported methods)
+    config_file = get_config_path(configurations)
+
+    # check if a config file is provided via the --config argument
+    if config_file is None:
+
+        print('\nPlease specify a workflow using the --workflow flag (also specify the model using the --model flag if multiple models are present in the container) or provide a config file using the --config flag.')
         print(f'{f.cgray}Example: python3 -m mhubio.run --config /app/models/{f.funderline}$model_name{f.fnormal+f.cgray}/config/config.yml{f.cend}\n')
 
         if interactive:
-            config_file = interactive_routine()
+            config_file = interactive_routine(configurations)
             
             if config_file is None:
                 print('Aborted.')
                 sys.exit(0)
 
         else:
-            configurations = scan_configurations()
             print_configurations(configurations)
             sys.exit(0)
-    else:
-        config_file_argv_index = sys.argv.index('--config')
-        if len(sys.argv) > config_file_argv_index + 1:
-            config_file = sys.argv[config_file_argv_index + 1]
 
     # ensure that if a config file is provided, it exists
     if config_file is not None and not os.path.isfile(config_file):
         print(f'{f.cyellow+f.fbold} Warning:{f.fnormal+f.cyellow} The provided config file {f.fitalics}{config_file}{f.fnormal+f.cyellow} does not exist.{f.cend}')
         sys.exit(0)
+
+    # NOTE: to this point, config_file may still be unspecified (None) 
+    #       allowing the user plans to run using the minimal default config.
     
     # cleanup
     if '--cleanup' in sys.argv:
