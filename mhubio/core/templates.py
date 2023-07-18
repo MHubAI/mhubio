@@ -9,3 +9,4 @@ PX      = Meta(mod="PX")        # Panoramic X-Ray
 XA      = Meta(mod="XA")        # X-Ray Angiography
 SEG     = Meta(mod="SEG")       # Segmentation
 US      = Meta(mod="US")        # Ultrasound
+SM      = Meta(mod="SM")        # Slide Microscopy
