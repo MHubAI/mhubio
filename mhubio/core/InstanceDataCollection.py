@@ -56,8 +56,8 @@ class InstanceDataCollection:
         return cls.filterByDataType(pool, DataType.fromString(ref_type), confirmed_only)
 
     def filter(self, ref_types: Union[DataType, str, List[DataType], List[str], DataTypeQuery], confirmed_only: bool = False) -> 'InstanceDataCollection':
-        #if isinstance(ref_types, list) or isinstance(ref_types, DataType): 
-        #    print("\033[95mDEPRECATION WARNING: InstanceDataCollection.filter() should be called with a DataTypeQuery instance or DataTypeQuery compatible string.\033[0m")
+        if isinstance(ref_types, list) or isinstance(ref_types, DataType): 
+            print("\033[95mDEPRECATION WARNING: InstanceDataCollection.filter() should be called with a DataTypeQuery instance or DataTypeQuery compatible string.\033[0m")
 
         if isinstance(ref_types, DataTypeQuery):
             return InstanceDataCollection([d for d in self._data if (d.confirmed or not confirmed_only) and ref_types.exec(d.type)])

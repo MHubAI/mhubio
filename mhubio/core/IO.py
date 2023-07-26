@@ -2,23 +2,25 @@
 from typing import TypeVar, Callable, Any, Optional, Union, Type, List, Dict
 from typing_extensions import ParamSpec, Concatenate, get_origin
 from mhubio.core import Module, Instance, InstanceData, InstanceDataCollection, DataType, Meta, DataTypeQuery
+from mhubio.core.RunnerOutput import RunnerOutput
 from inspect import signature
 import os, traceback
 
 # typing aliases and placeholders
-T = TypeVar('T', bound='Module')
+T = TypeVar('T', bound=Module)
 V = TypeVar('V')
 W = TypeVar('W')
 A = Union[V, Callable[[Module], V]]
 Aopt = Optional[Union[V, Callable[[Module], V]]]
 P = ParamSpec("P")
+OT = TypeVar('OT', bound=RunnerOutput)
 
 # custom exceptions
 class IOError(Exception):
     pass
 
 # helper functions
-def check_signature(func: Callable[..., Any], sig: Dict[str, type]):
+def check_signature(func: Callable[..., Any], sig: Dict[str, Type]):
     if not hasattr(func, '_mhubio_ofunc'):
        return
 
@@ -194,6 +196,42 @@ class IO:
         return decorator
     
     @staticmethod
+    def OutputData(name: str, type: Type[OT], data: Optional[str] = None, the: Optional[str] = None) -> Callable[[Callable[Concatenate[T, 'Instance', P], None]], Callable[[T, 'Instance'], None]]:
+        if the is not None: 
+            type.description = the
+
+        if not hasattr(type, 'description') or not type.description:
+            raise IOError(f"OutputData {name} must have a description.")
+
+        def decorator(func: Callable[Concatenate[T, Instance, P], None]) -> Callable[[T, Instance], None]:
+            
+            check_signature(func, {name: type})                
+            
+            def wrapper(self: T, instance: Instance, *args: P.args, **kwargs: P.kwargs) -> None:
+
+                # ref data
+                ref_data = kwargs[data] if data is not None else None
+                assert isinstance(ref_data, InstanceData) or ref_data is None
+
+                # create instance of output class
+                output = type()
+
+                # copy meta data from ref data if any
+                if ref_data is not None and ref_data.type.meta:
+                    output.meta = ref_data.type.meta + (output.meta or Meta())
+
+                # call wrapped function
+                kwargs[name] = output
+                func(self, instance, *args, **kwargs)
+
+                # assign
+                instance.setData(output)
+                
+            wrapper._mhubio_ofunc = func._mhubio_ofunc if hasattr(func, '_mhubio_ofunc') else func   
+            return wrapper
+        return decorator
+
+    @staticmethod
     def Output(name: str, path: A[str], dtype: A[str], data: Optional[str] = None, bundle: Optional[A[str]] = None, auto_increment: bool = False, in_signature: bool = True, the: Optional[str] = None) -> Callable[[Callable[Concatenate[T, 'Instance', P], None]], Callable[[T, 'Instance'], None]]:
         def decorator(func: Callable[Concatenate[T, Instance, P], None]) -> Callable[[T, Instance], None]:
             
@@ -310,7 +348,7 @@ class IO:
     # NOTE: 2: In the scenario, where a model generates n files with known names and the @IO.Input operators are set to match these names, it might be easiest to create a bundle, then let the model output it's files into that bundle and define the @IO.Input operators linked to that bundle. The confirmation check then ensures wheather the files were found or not. This seems better than a copy instruction for those files (preventing hardcoding model output file names twice). Could this work for multiple inputs too? Check this with the Platipy use case.
     @staticmethod
     def Bundle(name: str, path: Optional[A[str]] = None, data: Optional[str] = None, the: Optional[str] = None) -> Callable[[Callable[Concatenate[T, 'Instance', P], None]], Callable[[T, 'Instance'], Any]]:
-        raise IOError("Bundle decorator not yet supported")
+        #raise IOError("Bundle decorator not yet supported")
         def decorator(func: Callable[Concatenate[T, 'Instance', P], None]) -> Callable[[T, 'Instance'], None]:
             def wrapper(self: T, instance: Instance, *args: P.args, **kwargs: P.kwargs) -> None: 
                 _path = path(self) if callable(path) else path               

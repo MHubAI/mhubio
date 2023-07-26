@@ -11,10 +11,11 @@ Email:  leonard.nuernberg@maastrichtuniversity.nl
 
 import os, uuid
 
-from typing import List, Dict, Optional, Union
+from typing import List, Dict, Optional, Any
 from .DataType import DataType
 from .FileType import FileType
 from .DirectoryChain import DirectoryChainInterface
+from .RunnerOutput import RunnerOutput, RunnerOutputType, ValueOutput, ClassOutput
 
 class Instance(DirectoryChainInterface): 
     # handler:      DataHandler
@@ -25,7 +26,8 @@ class Instance(DirectoryChainInterface):
     def __init__(self, path: str = "") -> None:
         super().__init__(path=path, parent=None, base=None)
         self._handler: Optional['DataHandler'] = None                   # NOTE: handler is set delayed but is NOT OPTIONAL !
-        self.data: InstanceDataCollection = InstanceDataCollection()
+        self.data: InstanceDataCollection = InstanceDataCollection()    # TODO: rename to files (and rename InstanceData to InstanceFile etc.)
+        self.outputData: List[RunnerOutput] = []
         self.attr: Dict[str, str] = {'id': str(uuid.uuid4())}
 
     @property
@@ -52,11 +54,15 @@ class Instance(DirectoryChainInterface):
 
         # formatting options
         # TODO: outsource or standardize if used frequently
-        chead = '\033[95m'
-        cyan = '\033[96m'
-        cend = '\033[0m'
-        fitalics = '\x1B[3m'
-        fnormal ='\x1B[0m'
+        chead       = '\033[95m'
+        cyan        = '\033[96m'
+        cgray       = '\033[30m'
+        cyellow     = '\033[93m'    
+        cend        = '\033[0m'
+        fitalics    = '\x1B[3m'
+        funderline  = '\x1B[4m'
+        fnormal     = '\x1B[0m'
+        fbold       = '\x1B[1m'
 
         # print fromatted output
         print(f". Instance {fitalics}{label}{fnormal} [{self.abspath}]")
@@ -67,8 +73,31 @@ class Instance(DirectoryChainInterface):
 
             # print meta    
             if meta:
-                for k, v in data.type.meta.items():
-                    print(f"│   ├── {cyan}{k}: {v}{cend}")
+                for i, (k, v) in enumerate(data.type.meta.items()):
+                    print(f"│   {'├' if i < len(data.type.meta) - 1 else '└'}── {cyan}{k}: {v}{cend}")
+
+        for data in self.outputData:
+            print(f"├── {chead}{str(data.name)}{cend} [{data.label}]")
+            print(f"│   {fitalics+cgray}{data.description}{fnormal+cend}")
+
+            if data.type == RunnerOutputType.ValuePrediction:
+                assert isinstance(data, ValueOutput)
+                print(f"│   └── {cyellow}{str(data.label)}{cend} ({data.value})")
+
+            elif data.type == RunnerOutputType.ClassPrediction:
+                assert isinstance(data, ClassOutput)
+                for i, c in enumerate(data.classes):
+                    print(f"│   {'├' if i < len(data.classes) - 1 else '└'}── ", end="")
+                    cidstrlen = max(len(str(c.classID)) for c in data.classes) + 2
+                    clabstrlen = max(len(str(c.label)) for c in data.classes)
+                    ccolor = cyellow if data.predictedClass == c else cgray
+                    cidstr = str(c.classID) + ' ' + (u'\u2713' if data.predictedClass == c else u'\u2717')
+                    print(f"{ccolor}{cidstr:<{cidstrlen}}{cend} [{c.label}]{' '*(clabstrlen-len(c.label))} ({c.probability}) {fitalics+cgray}{c.description}{fnormal+cend}")
+
+            # print meta    
+            if meta and data.meta is not None:
+                for i, (k, v) in enumerate(data.meta.items()):
+                    print(f"│   {'├' if i < len(data.meta) - 1 else '└'}── {cyan}{k}: {v}{cend}")
 
     def printDataMetaOverview(self, idc: Optional['InstanceDataCollection'] = None, compress: bool = True, label: str = "") -> None:
 
@@ -146,6 +175,12 @@ class Instance(DirectoryChainInterface):
 
         # add data to collection (no duplicates)
         self.data.add(data)
+
+    def setData(self, output: Any):
+        self.outputData.append(output)
+
+    def setAttribute(self, key: str, value: Any):
+        self.attr[key] = value
 
     def __str__(self) -> str:
         return "<I:%s>"%(self.abspath)

@@ -13,3 +13,4 @@ from .templates import *
 from .InstanceDataCollection import InstanceDataCollection
 from .Error import *
 from .IO import IO
+from .RunnerOutput import ValueOutput, ClassOutput, OutputClass
