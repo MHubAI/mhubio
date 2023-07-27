@@ -15,8 +15,10 @@ import os, subprocess
 
 from segdb.tools import DcmqiDsegConfigGenerator
 
-@IO.Config('source_segs', List[DataType], ['nifti:mod=seg:roi=*', 'nrrd:mod=seg:roi=*'], factory=IO.F.list(DataType.fromString), the='target segmentation files to convert to dicomseg')
-@IO.Config('target_dicom', DataType, 'dicom:mod=ct', factory=DataType.fromString, the='dicom data all segmentations align to')
+@IO.ConfigInput('source_segs', 'nifti|nrrd|mha:mod=seg:roi=*', the="target segmentation files to convert to dicomseg")
+@IO.ConfigInput('target_dicom', 'dicom:mod=ct', the="dicom data all segmentations align to")
+#@IO.Config('source_segs', List[DataType], ['nifti:mod=seg:roi=*', 'nrrd:mod=seg:roi=*'], factory=IO.F.list(DataType.fromString), the='target segmentation files to convert to dicomseg')
+#@IO.Config('target_dicom', DataType, 'dicom:mod=ct', factory=DataType.fromString, the='dicom data all segmentations align to')
 @IO.Config('skip_empty_slices', bool, True, the='flag to skip empty slices')
 @IO.Config('converted_file_name', str, 'seg.dcm', the='name of the converted file')
 @IO.Config('bundle_name', str, None, the="bundle name converted data will be added to")
@@ -37,16 +39,18 @@ class DsegConverter(Module):
     body_part_examined: str
 
     @IO.Instance()
-    @IO.Inputs("in_segs", IO.C("source_segs"), the="input data to convert to dicomseg")
-    @IO.Input("in_dicom", IO.C("target_dicom"), the="input dicom data to convert to dicomseg")
-    @IO.Output('out_data', path=IO.C('converted_file_name'), dtype='dicomseg:mod=seg', data='in_dicom', bundle=IO.C('bundle_name'), auto_increment=True, the="converted data")
-    def task(self, instance: Instance, in_segs: InstanceDataCollection, in_dicom: InstanceData, out_data: InstanceData) -> None:
+    @IO.Inputs('source_segs', the="data to be converted")
+    @IO.Input('target_dicom', the="dicom used as reference for the conversion")
+    #@IO.Inputs("in_segs", IO.C("source_segs"), the="input data to convert to dicomseg")
+    #@IO.Input("in_dicom", IO.C("target_dicom"), the="input dicom data to convert to dicomseg")
+    @IO.Output('out_data', path=IO.C('converted_file_name'), dtype='dicomseg:mod=seg', data='target_dicom', bundle=IO.C('bundle_name'), auto_increment=True, the="converted data")
+    def task(self, instance: Instance, source_segs: InstanceDataCollection, target_dicom: InstanceData, out_data: InstanceData) -> None:
         
         # either use a custom json config or generate based on meta label (default key: roi)
         if self.json_config_path is not None:
 
             # sort files alphabetically
-            file_list = sorted([in_seg.abspath for in_seg in in_segs])   
+            file_list = sorted([source_seg.abspath for source_seg in source_segs])   
             json_config_path = self.json_config_path
 
         else:
@@ -58,11 +62,11 @@ class DsegConverter(Module):
             )
 
             # extract and populate data 
-            for in_seg in in_segs:
+            for source_seg in source_segs:
                 generator.addItem(
-                    file = in_seg.abspath, 
-                    segment_ids = in_seg.type.meta[self.segment_id_meta_key].split(","),
-                    model_name = in_seg.type.meta.getValue('model'),
+                    file = source_seg.abspath, 
+                    segment_ids = source_seg.type.meta[self.segment_id_meta_key].split(","),
+                    model_name = source_seg.type.meta.getValue('model'),
                 )
 
             # store json in temp dir
@@ -81,7 +85,7 @@ class DsegConverter(Module):
         # build command
         bash_command  = ["itkimage2segimage"]
         bash_command += ["--inputImageList", ",".join(file_list)]
-        bash_command += ["--inputDICOMDirectory", in_dicom.abspath]
+        bash_command += ["--inputDICOMDirectory", target_dicom.abspath]
         bash_command += ["--outputDICOM", out_data.abspath]
         bash_command += ["--inputMetadata", json_config_path]
 

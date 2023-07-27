@@ -20,9 +20,10 @@ from mhubio.core import Module, Instance, InstanceData, DataType, FileType, IO
 # TODO: add an optional evaluation pattern (regex) to IO.Config
 nnunet_task_name_regex = r"Task[0-9]{3}_[a-zA-Z0-9_]+"
 
+@IO.ConfigInput('in_data', 'nifti:mod=ct', the="input data to run nnunet on")
 @IO.Config('nnunet_task', str, None, the='nnunet task name')
 @IO.Config('nnunet_model', str, None, the='nnunet model name (2d, 3d_lowres, 3d_fullres, 3d_cascade_fullres)')
-@IO.Config('input_data_type', DataType, 'nifti:mod=ct', factory=DataType.fromString, the='input data type')
+#@IO.Config('input_data_type', DataType, 'nifti:mod=ct', factory=DataType.fromString, the='input data type')
 @IO.Config('folds', int, None, the='number of folds to run nnunet on')
 @IO.Config('use_tta', bool, False, the='flag to enable test time augmentation')
 @IO.Config('export_prob_maps', bool, False, the='flag to export probability maps')
@@ -126,7 +127,7 @@ class NNUnetRunner(Module):
                 prob_mask.confirm()
 
     @IO.Instance()
-    @IO.Input("in_data", IO.C("input_data_type"), the="input data to run nnunet on")
+    @IO.Input("in_data", the="input data to run nnunet on")
     @IO.Output("out_data", 'VOLUME_001.nii.gz', 'nifti:mod=seg:model=nnunet', data='in_data', the="output data from nnunet")
     def task(self, instance: Instance, in_data: InstanceData, out_data: InstanceData) -> None:
         

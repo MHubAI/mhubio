@@ -11,7 +11,7 @@ Email:  leonard.nuernberg@maastrichtuniversity.nl
 
 from typing import Dict, Optional
 import os, shutil, uuid, re
-from mhubio.core import Config, Module, Instance, InstanceData, DataType, DirectoryChain, IO
+from mhubio.core import Config, Module, Instance, InstanceData, DataType, DataTypeQuery, DirectoryChain, IO
 from mhubio.utils.printing import f as pf
 
 @IO.Config('target_dir', str, 'output_data', the="target directory where the organized data will be placed. Relative paths are resolved relative to the directory set in general.data_base_dir.")
@@ -23,7 +23,7 @@ class DataOrganizer(Module):
     targets: list
     require_data_confirmation: bool
 
-    _targets: Dict[DataType, str] = {}
+    _targets: Dict[DataTypeQuery, str] = {}
     set_file_permissions: bool 
 
     def __init__(self, config: Config, dry_run: bool = False, set_file_permissions: bool = False, **kwargs) -> None:
@@ -65,14 +65,14 @@ class DataOrganizer(Module):
                     src_def, tar_def = target_definition.split("-->")
 
                     # create data type instance
-                    data_type = DataType.fromString(src_def)
+                    dtq = DataTypeQuery(src_def)
 
                     # set target 
-                    self.setTarget(data_type, tar_def)
+                    self.setTarget(dtq, tar_def)
                 except Exception as e:
                     print(f"WARNING: could not parse target definition '{target_definition}: {str(e)}'")
 
-    def setTarget(self, type: DataType, dir: str) -> None: # TODO: define copy / move action
+    def setTarget(self, dtq: DataTypeQuery, dir: str) -> None: # TODO: define copy / move action
         """
         Target directory where files of matching data type are copied to.
         Absolute path required. 
@@ -86,7 +86,7 @@ class DataOrganizer(Module):
             [i:...] -> any attribute from instance id (<Instance>.attr[...])
             [d:...] -> any metadata from datatype (<DataType>.meta[...])
         """
-        self._targets[type] = dir
+        self._targets[dtq] = dir
 
     @staticmethod
     def resolveTarget(target: str, data: InstanceData) -> Optional[str]:
@@ -130,19 +130,12 @@ class DataOrganizer(Module):
         self.v(f'{pf.chead+pf.fbold}organizing instance {pf.fnormal+pf.fitalics}{str(instance)}{pf.fnormal+pf.cend}')
         self.v(f'{pf.cgray}target directory: {self.output_dc.abspath}{pf.cend}')
         
-        for (type, target) in self._targets.items():
+        for (dtq, target) in self._targets.items():
 
-            self.v(f"\n{pf.cyellow}{type.toString()} --> {target}{pf.cend}")
+            self.v(f"\n{pf.cyellow}{dtq.query} --> {target}{pf.cend}")
             
-            if not instance.hasType(type):
-                self.v(f"Type {str(type)} not in instance.")
-                self.v(f'{pf.cgray}Available types:{pf.cend}')
-                for d in instance.data:
-                    self.v(f'> {pf.cgray}{str(d.type)} ({d.abspath}){pf.cend}')
-                continue
-
             # get input file path
-            inp_datas = instance.data.filter(type, confirmed_only=self.require_data_confirmation)
+            inp_datas = instance.data.filter(dtq, confirmed_only=self.require_data_confirmation)
             self.v(f'{pf.cgray}Found {len(inp_datas)} matches.{pf.cend}')
             for inp_data in inp_datas:
 

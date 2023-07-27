@@ -16,7 +16,7 @@ Date:   28.02.2022
 
 from typing import List, Dict, Optional 
 from typing_extensions import TypedDict, NotRequired
-from mhubio.core import Config, Meta, Module, Instance, InstanceData, InstanceDataBundle, DataType, FileType
+from mhubio.core import Module, Instance, InstanceData, InstanceDataBundle, DataType, IO
 import os, csv, copy, uuid, re, shutil
 
 class ScanFeature(TypedDict):
@@ -25,6 +25,13 @@ class ScanFeature(TypedDict):
     dtype: str
     bundle: NotRequired[str]
 
+@IO.Config('input_dir', str, '', the='The input directory that is scanned for data.')
+@IO.Config('instance_dir', str, 'imported_instances', the='The directory where instances are stored.')
+@IO.Config('structures', List[str], [], the='The directory structure that is used to parse meta data from the input directory.')
+@IO.Config('excludes', List[str], [], the='directory structure that is used to exclude directories from the input directory.')
+@IO.Config('meta', list, None, the='meta data lookup definition')
+@IO.Config('import_id', str, '_instance', the='meta key pattern, that is used to reference/identify instances.')
+@IO.Config('outsource_instances', bool, True, the='flag if set, instances are always outsourced to the instance directory.')
 class FileStructureImporter(Module):
     """
     Structural Importer Module.
@@ -45,14 +52,21 @@ class FileStructureImporter(Module):
         outsource_instances: bool (default: True)
             If True, instances are always outsourced to the instance directory. 
     """
+
+    input_dir: str
+    instance_dir: str
+    structures: List[str]
+    excludes: List[str]
+    meta: List[Dict[str, str]]
+    import_id: str
+    outsource_instances: bool
    
     def task(self) -> None:
         # scan input definitions
-        input_dir = self.getConfiguration('input_dir', '')
-        input_dir = os.path.join(self.config.data.abspath, input_dir)
-        instances_dir = os.path.join(self.config.data.abspath, self.getConfiguration('instance_dir', 'imported_instances'))
-        structures = self.getConfiguration('structures', [])
-        excludes = self.getConfiguration('excludes', [])
+        input_dir = os.path.join(self.config.data.abspath, self.input_dir)
+        instances_dir = os.path.join(self.config.data.abspath, self.instance_dir)
+        structures = self.structures
+        excludes = self.excludes
 
         # print overview in debug mode
         if self.config.debug:
@@ -64,7 +78,7 @@ class FileStructureImporter(Module):
         sr = scan_directory(input_dir, structures, excludes, verbose=self.config.verbose)
         
         # extend meta from csv
-        if meta_extends := self.getConfiguration('meta', None):
+        if meta_extends := self.meta:
             for me in meta_extends:
                 if me['type'] == 'csv' and 'id' in me and 'path' in me and os.path.isfile(me['path']):
                     extend_meta_from_csv(sr, me['path'], me['id'])
@@ -74,7 +88,7 @@ class FileStructureImporter(Module):
         bundles: Dict[str, InstanceDataBundle] = {}
        
         # the meta key that is used to reference/identify instances
-        import_id_str: str = self.getConfiguration('import_id', '_instance')
+        import_id_str: str = self.import_id
         import_id_pattern: List[str] = import_id_str.split('/')
 
         # detect instances that are imported from a data import level 
@@ -106,7 +120,7 @@ class FileStructureImporter(Module):
 
             # outsource instace base directory (all instance related files will be organized in that directory)
             # warning if instance has no root directory but a data import path (e.g., file or dicom folder)
-            if path in unwrapped_instance_paths or self.getConfiguration('outsource_instances', True):
+            if path in unwrapped_instance_paths or self.outsource_instances:
 
                 if path in unwrapped_instance_paths:
                     print(f"WARNING: instance definition on dtype import level is experimental: {path}")
