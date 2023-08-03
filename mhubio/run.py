@@ -33,6 +33,7 @@ import_paths = {
     'NrrdConverter': 'mhubio.modules.convert.NrrdConverter',
     'DsegConverter': 'mhubio.modules.convert.DsegConverter',
     'MhaConverter': 'mhubio.modules.convert.MhaConverter',
+    'TiffConverter': 'mhubio.modules.convert.TiffConverter',
 
     'DataOrganizer': 'mhubio.modules.organizer.DataOrganizer',
 
