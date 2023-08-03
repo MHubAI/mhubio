@@ -106,7 +106,7 @@ class OutputClass():
 class ClassOutput(RunnerOutput):
 
     classes: List[OutputClass]
-    classID: Optional[Union[str, int]]
+    _classID: Optional[Union[str, int]]
 
     def __init__(self) -> None:
         super().__init__()
