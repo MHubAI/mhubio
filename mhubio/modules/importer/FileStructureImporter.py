@@ -25,11 +25,11 @@ class ScanFeature(TypedDict):
     dtype: str
     bundle: NotRequired[str]
 
-@IO.Config('input_dir', str, '', the='The input directory that is scanned for data.')
+@IO.Config('input_dir', str, 'input_data', the='The input directory that is scanned for data.')
 @IO.Config('instance_dir', str, 'imported_instances', the='The directory where instances are stored.')
 @IO.Config('structures', List[str], [], the='The directory structure that is used to parse meta data from the input directory.')
 @IO.Config('excludes', List[str], [], the='directory structure that is used to exclude directories from the input directory.')
-@IO.Config('meta', list, None, the='meta data lookup definition')
+@IO.Config('meta', List[Dict[str, str]], [], the='meta data lookup definition')
 @IO.Config('import_id', str, '_instance', the='meta key pattern, that is used to reference/identify instances.')
 @IO.Config('outsource_instances', bool, True, the='flag if set, instances are always outsourced to the instance directory.')
 class FileStructureImporter(Module):
@@ -38,7 +38,7 @@ class FileStructureImporter(Module):
     Import data from a input directory structure.
 
     configuration:
-        input_dir: str  (default: '')
+        input_dir: str  (default: 'input_data')
             The input directory that is scanned for data.
         instance_dir: str (default: 'imported_instances')
             The directory where instances are stored.
