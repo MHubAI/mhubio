@@ -34,6 +34,7 @@ import_paths = {
     'DsegConverter': 'mhubio.modules.convert.DsegConverter',
     'MhaConverter': 'mhubio.modules.convert.MhaConverter',
     'TiffConverter': 'mhubio.modules.convert.TiffConverter',
+    'RTStructConverter': 'mhubio.modules.convert.RTStructConverter',
 
     'DataOrganizer': 'mhubio.modules.organizer.DataOrganizer',
 
@@ -276,6 +277,42 @@ def run(config_file: Optional[str] = None):
     # parse the module list
     workflow = get_workflow(config._config['execute'])
 
+    # start at step 
+    # TODO: fh export per workflow -> sub-folder with wf name
+    if '--start-at' in sys.argv:
+        start_at = int(sys.argv[sys.argv.index('--start-at') + 1])
+
+        if start_at <= 0:
+            print(f'{f.cyellow+f.fbold} Warning:{f.fnormal+f.cyellow} The specified start-at index is smaller than 1. Just run the workflow without the --start-at flag instead.{f.cend}')
+            return
+
+        # chek if export available under /app/data/debug file_handler_{i}.yml 
+        fhexp_path = f'/app/data/debug/file_handler_{start_at-1}.yml'
+        if not os.path.exists(fhexp_path):
+            print(f'{f.cyellow+f.fbold} Warning:{f.fnormal+f.cyellow} No export file found at {fhexp_path}. Please run the workflow from the beginning.{f.cend}')
+            return
+        
+        # check if workflow is long enough
+        if len(workflow) < start_at:
+            print(f'{f.cyellow+f.fbold} Warning:{f.fnormal+f.cyellow} The specified start-at index is larger than the workflow length. Please run the workflow from the beginning.{f.cend}')
+            return
+        
+        # remove all modules before start_at
+        workflow = workflow[start_at:]
+
+        # print new workflow
+        print(f'\n{f.cyan+f.fbold} Workflow:{f.cend}')
+        for i, (m, _) in enumerate(workflow):
+            print(f'{f.cgray}  - {i+start_at}: {m}{f.cend}')
+
+        # import file handler
+        print(f'\n{f.chead} Importing file handler from {fhexp_path}{f.cend}')
+        config.data.import_yml(fhexp_path)
+
+        # print inital debug
+        print(f'\n{f.cyan+f.fbold} Initial debug:{f.cend}')
+        config.data.printInstancesOverview()
+
     # sanity check
     if not all([module[0] in import_paths for module in workflow]):
         print(f'{f.cyellow+f.fbold} Warning:{f.fnormal+f.cyellow} One or more modules in the execution chain are not available. You may use a custom run script insead.{f.cend}')
@@ -340,7 +377,7 @@ if __name__ == '__main__':
     #       allowing the user plans to run using the minimal default config.
     
     # cleanup
-    if '--cleanup' in sys.argv:
+    if '--cleanup' in sys.argv and not '--start-at' in sys.argv:
         cleanup()
 
     # run
