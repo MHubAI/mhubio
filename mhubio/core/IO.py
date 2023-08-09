@@ -84,10 +84,10 @@ class IO:
                 raise IOError(f"Class does not have attribute {name}")
             
             if dcls.__annotations__[name] != type: 
-                raise IOError(f"Configurable attribute must be of type {type}")
+                raise IOError(f"Configurable attribute '{name}' must be of type {type}")
             
             if default is not None and not isinstance(factory(default), get_origin(type) or type): 
-                raise IOError(f"Default value must be of type {type}")
+                raise IOError(f"Default value of '{name}' must be of type {type}")
 
             # getter: class attribute > config > default
             def getAttr(self: T, attr_name=name) -> V:
