@@ -38,22 +38,12 @@ class NiftiConverter(Module):
 
     engine: NiftiConverterEngine
     allow_multi_input: bool
-    targets: List[DataType]
     bundle_name: str                    # TODO optional type declaration
     converted_file_name: str
     overwrite_existing_file: bool
     #wrap_output: bool
 
-    def setTarget(self, target: DataType) -> None:
-        self.targets.append(target)
-
     def plastimatch(self, instance: Instance, in_data: InstanceData, out_data: InstanceData, log_data: InstanceData) -> None:
-
-        #print("[DRY RUN] plastimatch")
-        #print("[DRY RUN] in:  ", in_data.abspath)
-        #print("[DRY RUN] out: ", out_data.abspath)
-        #print("[DRY RUN] log: ", log_data.abspath)
-        #return
 
         # set input and output paths later passed to plastimatch
         convert_args_ct: Dict[str, Any] = {
