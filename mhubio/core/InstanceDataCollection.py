@@ -104,6 +104,9 @@ class InstanceDataCollection:
         if not data in self._data:
             self._data.append(data)
 
+    def sort(self):
+        self._data.sort(key=lambda d: d.abspath)
+
     def __len__(self) -> int:
         return len(self._data)
     

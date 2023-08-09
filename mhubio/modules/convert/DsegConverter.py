@@ -61,6 +61,9 @@ class DsegConverter(Module):
                 body_part_examined = self.body_part_examined,
             )
 
+            # sort DTQ filter results by path name alphabetically
+            source_segs.sort()
+
             # extract and populate data 
             for source_seg in source_segs:
                 generator.addItem(
