@@ -186,58 +186,10 @@ class DataTypeQuery:
         if verbose:
             print("checking: ", kov, " against ", ref_meta, '=' in kov)
 
-        if '=' in kov and kov[kov.index('=')-1] not in ['~', '<', '>']:
-            k, v = kov.split('=')
-
-            # debug
-            if verbose: 
-                print(f"k: {k}, v: {v}, o: =")
-            
-            # return false if key is not present in reference meta
-            if not k in ref_meta:
-                if verbose: print(f"key {k} not in reference meta")
-                return False
-            
-            # placeholder (we already checked that the key exists in reference meta, so any value is valid)
-            if v == '*':
-                return True
-
-            # compare value against all options
-            for v_option in v.split('|'):
-                if ref_meta[k].lower() == v_option.lower():
-                    return True
-            return False
-        
-        elif '!=' in kov:
+        if '!=' in kov:
             k, v = kov.split('!=')
             return k not in ref_meta or ref_meta[k] != v
-        
-        elif '>' in kov and kov[kov.index('>')+1] != '=': # supports num
-            k, v = kov.split('>')
-
-            # return false if key is not present in reference meta
-            if not k in ref_meta:
-                return False
-            
-            # requires both sides to be numbers
-            # TODO: revisit and should we test v earlier (befor k in ref_meta check)?
-            assert v.isnumeric() and ref_meta[k].isnumeric()
-        
-            return int(ref_meta[k]) > int(v)
-        
-        elif '<' in kov and kov[kov.index('<')+1] != '=': # supports num
-            k, v = kov.split('<')
-
-            # return false if key is not present in reference meta
-            if not k in ref_meta:
-                return False
-            
-            # requires both sides to be numbers
-            # TODO: revisit and should we test v earlier (befor k in ref_meta check)?
-            assert v.isnumeric() and ref_meta[k].isnumeric()
-
-            return int(ref_meta[k]) < int(v)
-
+               
         elif '><' in kov:
             k, v = kov.split('><')
             
@@ -318,5 +270,54 @@ class DataTypeQuery:
             if verbose: print("regex match: ", v, " against ", ref_meta[k])
             return re.match(v, ref_meta[k]) is not None
         
+        elif '=' in kov:
+            k, v = kov.split('=')
+
+            # debug
+            if verbose: 
+                print(f"k: {k}, v: {v}, o: =")
+            
+            # return false if key is not present in reference meta
+            if not k in ref_meta:
+                if verbose: print(f"key {k} not in reference meta")
+                return False
+            
+            # placeholder (we already checked that the key exists in reference meta, so any value is valid)
+            if v == '*':
+                return True
+
+            # compare value against all options
+            for v_option in v.split('|'):
+                if ref_meta[k].lower() == v_option.lower():
+                    return True
+            return False
+
+        elif '>' in kov: # supports num
+            k, v = kov.split('>')
+
+            # return false if key is not present in reference meta
+            if not k in ref_meta:
+                return False
+            
+            # requires both sides to be numbers
+            # TODO: revisit and should we test v earlier (befor k in ref_meta check)?
+            assert v.isnumeric() and ref_meta[k].isnumeric()
+        
+            return int(ref_meta[k]) > int(v)
+        
+        elif '<' in kov: # supports num
+            k, v = kov.split('<')
+
+            # return false if key is not present in reference meta
+            if not k in ref_meta:
+                return False
+            
+            # requires both sides to be numbers
+            # TODO: revisit and should we test v earlier (befor k in ref_meta check)?
+            assert v.isnumeric() and ref_meta[k].isnumeric()
+
+            return int(ref_meta[k]) < int(v)
+
+
         else:
             raise Exception("Invalid operator in key operator value string")
