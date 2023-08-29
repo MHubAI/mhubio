@@ -9,16 +9,29 @@ Email:  leonard.nuernberg@maastrichtuniversity.nl
 -------------------------------------------------
 """
 
+from enum import Enum
 from typing import  Dict, Any
 
 from mhubio.core import Module, Instance, InstanceDataCollection, InstanceData, FileType
 from mhubio.core.IO import IO
 
 import os
+import os, SimpleITK as sitk
+from pathlib import Path
+
+# conversion dependencies (engine = plastimatch)
 import pyplastimatch as pypla # type: ignore
 
+# conversion dependencies (engine = panimg)
+from panimg.image_builders.dicom import image_builder_dicom # type: ignore
+from panimg.image_builders.metaio_nrrd import image_builder_nrrd # type: ignore
+from panimg.image_builders.metaio_nifti import image_builder_nifti # type: ignore
 
-#@IO.Config('engine', NiftiConverterEngine, 'plastimatch', factory=NiftiConverterEngine, the='engine to use for conversion')
+class MhaConverterEngine(Enum):
+    PLASTIMATCH = 'plastimatch'
+    PANIMG      = 'panimg'
+
+@IO.Config('engine', MhaConverterEngine, 'plastimatch', factory=MhaConverterEngine, the='engine to use for conversion')
 @IO.ConfigInput('in_datas', 'dicom|nrrd|nifti', the="target data that will be converted to mha")
 @IO.Config('allow_multi_input', bool, False, the='allow multiple input files')
 @IO.Config('bundle_name', str, 'mha', the="bundle name converted data will be added to")
@@ -29,6 +42,7 @@ class MhaConverter(Module):
     Conversion module that converts DICOM, NRRD and NIFTI data into MHA (using plastimatch).
     """
 
+    engine: MhaConverterEngine
     allow_multi_input: bool
     bundle_name: str                    # TODO optional type declaration
     converted_file_name: str
@@ -62,6 +76,42 @@ class MhaConverter(Module):
         if os.path.isfile(log_data.abspath):
             log_data.confirm()
 
+    def panimg(self, instance: Instance, in_data: InstanceData, out_data: InstanceData) -> None:
+
+        # check datatype 
+        if in_data.type.ftype == FileType.DICOM:
+
+            # extract dicom files
+            # TODO: check if panimg can accept a dicom folder instad
+            dcm_files_abspaths = [Path(os.path.join(in_data.abspath, f)) for f in os.listdir(in_data.abspath) if f.endswith(".dcm")]
+
+            # for dicom data use a dicom image builder
+            #  as we control the input (one dicom instance) we expect exactly one output. 
+            #  We set None as default to avoid StopIteration exceptions in caseof an empty iterator.
+            sitk_image = next(image_builder_dicom(files=dcm_files_abspaths), None)
+            
+        elif in_data.type.ftype == FileType.NRRD:
+
+            # for nrrd files use the nrrd image builder
+            sitk_image = next(image_builder_nrrd(files=[Path(in_data.abspath)]), None)
+
+        elif in_data.type.ftype == FileType.NIFTI:
+
+            # for nifti files use the tiff image builder
+            sitk_image = next(image_builder_nifti(files=[Path(in_data.abspath)]), None)
+
+        else:
+            print("CONVERT ERROR: unsupported file type: ", in_data.type.ftype)
+            return
+
+        # check that we got an image
+        if sitk_image is None:
+            print("CONVERT ERROR: image builder returned no images.")
+            return
+
+        # write the file via SimpleITK
+        sitk.WriteImage(sitk_image.image, out_data.abspath)
+
     @IO.Instance()
     @IO.Inputs('in_datas', the="data to be converted")
     @IO.Outputs('out_datas', path=IO.C('converted_file_name'), dtype='mha', data='in_datas', bundle=IO.C('bundle_name'), auto_increment=True, the="converted data")
@@ -73,6 +123,9 @@ class MhaConverter(Module):
         assert isinstance(out_datas, InstanceDataCollection)
         assert len(in_datas) == len(out_datas)
         assert len(in_datas) == len(log_datas)
+
+        # display the engine used
+        print(f"MHA conversion using engine: {self.engine}")
 
         # filtered collection must not be empty
         if len(in_datas) == 0:
@@ -94,11 +147,16 @@ class MhaConverter(Module):
                 print("CONVERT ERROR: File already exists: ", out_data.abspath)
                 continue
 
-            # check datatype 
-            if in_data.type.ftype in [FileType.DICOM, FileType.NRRD, FileType.NIFTI]:
-                                
-                # for nrrd files use plastimatch
+            # check supported datatype (both engines support dicom, nrrd and nifti)
+            if in_data.type.ftype not in [FileType.DICOM, FileType.NRRD, FileType.NIFTI]:
+                raise ValueError(f"CONVERT ERROR: unsupported file type {in_data.type.ftype}.")
+            
+            # pass to conversion engine
+            if self.engine == MhaConverterEngine.PLASTIMATCH:
                 self.plastimatch(instance, in_data, out_data, log_data)
 
+            elif self.engine == MhaConverterEngine.PANIMG:
+                self.panimg(instance, in_data, out_data)
+
             else:
-                raise ValueError(f"CONVERT ERROR: unsupported file type {in_data.type.ftype}.")
+                raise ValueError(f"CONVERT ERROR: unknown engine {self.engine}.")
