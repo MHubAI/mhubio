@@ -22,6 +22,10 @@ class AttributeFilter(DataFilter):
         matching_instances = []
         for instance in instances:
             for k, v in self.instance_attributes.items():
-                if k in instance.attr and (v == '*' or instance.attr[k].lower() == v.lower()):
+                if k in instance.attr and ( 
+                       (isinstance(v, list) and instance.attr[k] in v)  
+                    or (isinstance(v, int)  and instance.attr[k] == v) 
+                    or (isinstance(v, str)  and (v == "*" or instance.attr[k].lower() == v.lower())) 
+                ):
                     matching_instances.append(instance)
         return matching_instances
