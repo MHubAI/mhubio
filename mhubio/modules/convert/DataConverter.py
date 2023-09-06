@@ -1,6 +1,9 @@
 """
 -------------------------------------------------
 MHub - Conversion Base Module
+
+DEPRECATED - DO NOT USE THIS MODULE ANYMORE
+           -> always start from Module instead!
 -------------------------------------------------
 
 -------------------------------------------------
