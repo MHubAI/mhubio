@@ -110,14 +110,14 @@ class DataOrganizer(Module):
                         file_ext = os.path.basename(data.abspath).split('.', 1)[1] if '.' in os.path.basename(data.abspath) else ""
                         _target = _target.replace("[filext]", file_ext)
                 elif scope == "i:" and data.instance is not None:
-                    if not var in data.instance.attr:
-                        print(f"WARNING: attribute '{var}' missing in instance {data.instance}. Case ignored.")
-                        return None
+                    #if not var in data.instance.attr:
+                    #    print(f"WARNING: attribute '{var}' missing in instance {data.instance}. Case ignored.")
+                    #    return None
                     _target = _target.replace('[' + scope + var + ']', data.instance.attr[var])
                 elif scope == "d:":
-                    if not var in data.type.meta:
-                        print(f"WARNING: key '{var}' missing in datatype {data.type}. Case ignored.")
-                        return None
+                    #if not var in data.type.meta:
+                    #    print(f"WARNING: key '{var}' missing in datatype {data.type}. Case ignored.")
+                    #    return None
                     _target = _target.replace('[' + scope + var + ']', data.type.meta[var])
                 else:
                     raise ValueError(f"Unresolved pattern: '{scope}:{var}' in {target}.")
