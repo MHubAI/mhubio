@@ -124,7 +124,7 @@ class DataOrganizer(Module):
 
             return _target
 
-    @IO.Instance()
+    @IO.Instance(include_global_instance=True)
     def task(self, instance: Instance) -> None:
         
         self.v(f'{pf.chead+pf.fbold}organizing instance {pf.fnormal+pf.fitalics}{str(instance)}{pf.fnormal+pf.cend}')

@@ -71,8 +71,9 @@ class Config:
     # The config should be structured such that there is a shared config accessiblae to all modules and a (optional) config for each Module class. Class inheritance is followed naturally.
 
     def __init__(self, config_file: Optional[str] = None, config: Optional[dict] = None, args: Optional[Union[bool, List[str]]] = True) -> None:
-        self.verbose = True
-        self.debug = False
+        self.verbose: bool = True
+        self.debug: bool = False
+        self._logger: Optional['MLog'] = None
 
         # cli argument for verbosity level
         if '--verbosity' in sys.argv:
@@ -144,6 +145,13 @@ class Config:
         else:
             raise KeyError(f"Config key '{key}' not found.")
 
+    @property
+    def logger(self) -> Optional['MLog']:
+        return self._logger
+
+    def useLogger(self, logger: 'MLog') -> None:
+        self._logger = logger
+
     def v(self, *args) -> None:
         if self.verbose:
             print(*args)
@@ -152,3 +160,4 @@ class Config:
 
 from .DataHandler import DataHandler
 from .Module import Module
+from .Logger import MLog

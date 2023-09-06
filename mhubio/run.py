@@ -2,9 +2,19 @@
 -------------------------------------------------
 MHub - MHubIO Runner (entrypoint).
 python3 -m mhubio.run 
-    --debug
-    --cleanup
-    --config path/to/config.yml
+
+    --config path/to/default.yml    : the workflow configuration file
+    --workflow default              : shortcut for --config path/to/default.yml
+    --model $modelname              : only if multiple models are present in 
+                                      the container
+    --cleanup                       : clean the output folder and internal fodlers,
+                                      use when you start from within the container
+    --non-interactive               : disable interactive mode (only when no workflow 
+                                      is provided and Docker is not startwd using 
+                                      the `-it` flag)
+    --debug                         : show debug output
+    --print                         : print output to stdout instead of showing 
+                                      a progress bar
 -------------------------------------------------
 
 -------------------------------------------------
@@ -17,6 +27,7 @@ from typing import Dict, List, Optional, Union, Any, Tuple, Type
 import sys, os, importlib, yaml, shutil
 from mhubio.core import Config, Module
 from enum import Enum
+from mhubio.core.Logger import MLog
 
 # define import paths
 import_paths = {
@@ -29,7 +40,6 @@ import_paths = {
 
     'DicomConverter': 'mhubio.modules.convert.DicomConverter',
     'NiftiConverter': 'mhubio.modules.convert.NiftiConverter',
-    'NiftiConverter2': 'mhubio.modules.convert.NiftiConverter2',
     'NrrdConverter': 'mhubio.modules.convert.NrrdConverter',
     'DsegConverter': 'mhubio.modules.convert.DsegConverter',
     'MhaConverter': 'mhubio.modules.convert.MhaConverter',
@@ -178,10 +188,12 @@ def cleanup():
     shutil.rmtree("/app/tmp", ignore_errors=True)
     shutil.rmtree("/app/data/output_data", ignore_errors=True)
     shutil.rmtree("/app/data/imported_instances", ignore_errors=True)
+    shutil.rmtree("/app/data/_global", ignore_errors=True)
 
 def get_config_path(configurations: List[Dict[str, str]]) -> Optional[str]:
 
     # if config file is specified esplicitly, we return it
+    # FIXME: --config conflicting with --config in Config class. Proposed solution: rename --config in mhubio.run to --configfile or --file. 
     if '--config' in sys.argv:
         config_file_argv_index = sys.argv.index('--config')
         if len(sys.argv) > config_file_argv_index + 1:
@@ -309,9 +321,12 @@ def run(config_file: Optional[str] = None):
         print(f'\n{f.chead} Importing file handler from {fhexp_path}{f.cend}')
         config.data.import_yml(fhexp_path)
 
+        print()
+
         # print inital debug
-        print(f'\n{f.cyan+f.fbold} Initial debug:{f.cend}')
-        config.data.printInstancesOverview()
+        if '--debug' in sys.argv:
+            print(f'{f.cyan+f.fbold} Initial debug:{f.cend}')
+            config.data.printInstancesOverview()
 
     # sanity check
     if not all([module[0] in import_paths for module in workflow]):
@@ -320,6 +335,18 @@ def run(config_file: Optional[str] = None):
             if m not in import_paths:
                 print(f'{f.cgray}  - {m}{f.cend}')
         return 
+
+    # prepare MLog
+    logger: Optional[MLog] = None
+    if not '--print' in sys.argv:
+        logger = MLog(config)
+        logger.showProgress = '--debug' not in sys.argv
+        config.useLogger(logger)
+
+        for (m, _) in workflow:
+            logger.registerModule(m)
+
+        logger.start()
 
     # sequential execution
     for i, (class_name, model_config) in enumerate(workflow):
@@ -339,6 +366,12 @@ def run(config_file: Optional[str] = None):
             if not os.path.exists('/app/data/debug'):
                 os.makedirs('/app/data/debug')
             config.data.export_yml(f'/app/data/debug/file_handler_{i}.yml')
+
+        if '--debug' in sys.argv:
+            if not '--print' in sys.argv: 
+                print(f'\n{f.cyan+f.fbold} {class_name}:{f.cend}')
+            print()
+            config.data.printInstancesOverview()
 
 if __name__ == '__main__':
 

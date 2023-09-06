@@ -57,7 +57,7 @@ class NiftiConverter(Module):
         
         # run conversion using plastimatch
         pypla.convert(
-            verbose=self.verbose,
+            verbose=self.config.verbose,
             path_to_log_file=log_data.abspath,
             **convert_args_ct
         )
@@ -101,7 +101,7 @@ class NiftiConverter(Module):
         self.v(">> run: ", " ".join(bash_command))
 
         # execute command
-        _ = subprocess.run(bash_command, check = True, text = True)
+        self.subprocess(bash_command, text=True)
 
     @IO.Instance()
     #@IO.Inputs('in_datas', IO.C('targets'), the="data to be converted")

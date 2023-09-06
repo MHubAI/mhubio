@@ -98,4 +98,4 @@ class DsegConverter(Module):
 
         # run command
         self.v(">> run: ", " ".join(bash_command))
-        _ = subprocess.run(bash_command, check = True, text = True)
+        self.subprocess(bash_command, text=True)

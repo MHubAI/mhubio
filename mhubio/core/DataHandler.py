@@ -15,17 +15,29 @@ from .DataType import DataType
 import uuid, os
 
 class DataHandler(DirectoryChainInterface):
-    # base:         str
-    # _instances:   List[Instance]
-    # _tmpdirs:     Dict[str, str]
+    # base:             str
+    # _global_instance: Optional['Instance']
+    # _instances:       List[Instance]
+    # _tmpdirs:         Dict[str, str]
 
     def __init__(self, base: str) -> None:
         self._instances: List[Instance] = []
         self._tmpdirs: Dict[str, List[str]] = {}
 
+        # setup directory chain
         super().__init__(path=base, base=None, parent=None)
         self.dc.makeEntrypoint()
         assert self.dc.isEntrypoint()
+        
+        # setup a global instance
+        self._global_instance = Instance(path="_global")
+        self._global_instance.attr["id"] = "global"
+        self._global_instance.attr["sid"] = "global"
+        self._global_instance.handler = self
+
+    @property
+    def globalInstance(self) -> 'Instance':
+        return self._global_instance
 
     @property
     def instances(self) -> List['Instance']:
@@ -146,7 +158,7 @@ class DataHandler(DirectoryChainInterface):
 
     def printInstancesOverview(self, level: str = "data+meta"):
         assert level in ["data", "meta", "data+meta"]
-        for instance in self.instances:
+        for instance in [self.globalInstance, *self.instances]:
             if level == "data":
                 instance.printDataOverview(meta=False)
             elif level == "meta":

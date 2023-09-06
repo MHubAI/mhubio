@@ -68,8 +68,7 @@ class DicomImporter(Module):
 
         # TODO: remove
         self.v(">> run: ", " ".join(bash_command))
-
-        _ = subprocess.run(bash_command, check=True, text=True)
+        self.subprocess(bash_command, text=True)
 
     def updateMeta(self, dicom_data: InstanceData) -> None:
 

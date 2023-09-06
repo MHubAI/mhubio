@@ -9,10 +9,11 @@ Email:  leonard.nuernberg@maastrichtuniversity.nl
 -------------------------------------------------
 """
 
-from typing import Any, List, Type, Optional
+from typing import Any, List, Type, Optional, Union
 from .Config import Config
+from .Logger import MLogLevel
 
-import time
+import time, subprocess
 
 class Module:
     # label:    str
@@ -23,8 +24,6 @@ class Module:
     def __init__(self, config: Config, local_config: Optional[dict] = None) -> None:
         self.label: str = self.__class__.__name__
         self.config: Config = config
-        self.verbose: bool = config.verbose
-        self.debug: bool = config.debug
         self.local_config: dict = local_config if local_config is not None else {}
 
     @property 
@@ -42,10 +41,36 @@ class Module:
             return default
 
     def v(self, *args) -> None:
-        if self.verbose:
+        """
+        Legacy method for logging. Resolves to log(file=True).
+        """
+        
+        self.log(*args, level=MLogLevel.NOTICE)
+
+    def log(self, *args, level: Union[int, MLogLevel] = MLogLevel.NOTICE) -> None:
+        """ Log messages for the module.
+        Messages are logged to a log file and bound to an instance if possible.
+        """
+
+        if self.config.logger is not None:
+            self.config.logger.log(*args, level=level)
+        else:
             print(*args)
 
+    def subprocess(self, args: List[str], **kwargs) -> None:
+
+        with subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, bufsize=1, universal_newlines=True, **kwargs) as p:
+            if p.stdout:
+                for line in p.stdout:
+                    self.log(line.strip(), level=MLogLevel.EXTERNAL)
+
+
     def execute(self) -> None:
+        # new MLog implementation
+        if self.config.logger is not None:
+            self.config.logger.startModule(self.label)
+
+        # old logging
         self.v("\n--------------------------")
         self.v("Start %s"%self.label)
         start_time = time.time()
@@ -53,9 +78,9 @@ class Module:
         elapsed = time.time() - start_time
         self.v("Done in %g seconds."%elapsed)
 
-        if self.debug:
-            self.v("\n-debug--------------------")
-            self.config.data.printInstancesOverview()
+        # new MLog implementation
+        if self.config.logger is not None:
+            self.config.logger.finishModule(self.label)
 
     def task(self) -> None:
         """

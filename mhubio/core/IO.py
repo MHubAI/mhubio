@@ -5,6 +5,7 @@ from mhubio.core import Module, Instance, InstanceData, InstanceDataCollection, 
 from mhubio.core.RunnerOutput import RunnerOutput
 from inspect import signature
 import os, traceback
+from .Logger import ConsoleCapture
 
 # typing aliases and placeholders
 T = TypeVar('T', bound=Module)
@@ -157,17 +158,43 @@ class IO:
     
 
     @staticmethod
-    def Instance() -> Callable[[Callable[Concatenate[T, Instance, P], None]], Callable[[T], None]]:
+    def Instance(include_global_instance: bool = False) -> Callable[[Callable[Concatenate[T, Instance, P], None]], Callable[[T], None]]:
         def decorator(func: Callable[Concatenate[T, Instance, P], None]) -> Callable[[T], None]:
             check_signature(func, {'instance': Instance})
             def wrapper(self: T, *args: P.args, **kwargs: P.kwargs) -> None:
+                
+                # global instacne (exclude from instace logging, log on module level)
+                if include_global_instance:
+                    try:
+                        with ConsoleCapture(self.config.logger) as output:
+                            func(self, self.config.data.globalInstance, *args, **kwargs)
+                    except Exception as e:
+                        self.v(f"ERROR: {self.__class__.__name__} failed processing instance {str(self.config.data.globalInstance)}: {str(e)} in {traceback.format_exc()}")
+
+                # iterate through all instances
                 for instance in self.config.data.instances:
                     try:
-                        func(self, instance, *args, **kwargs)    
+
+                        # start instance logging if MLog is set-up
+                        if self.config.logger is not None:
+                            self.config.logger.startInstance(instance)
+
+                        # call modules (wrapped) task function for instance
+                        with ConsoleCapture(self.config.logger) as output:
+                            func(self, instance, *args, **kwargs)
+
                     except Exception as e:
                         # TODO: add logging, generate final report
                         self.v(f"ERROR: {self.__class__.__name__} failed processing instance {str(instance)}: {str(e)} in {traceback.format_exc()}")
+                   
+                    finally:
+                        # finish instance logging if MLog is set-up 
+                        if self.config.logger is not None:
+                            self.config.logger.finishInstance(instance)
+
+            #
             wrapper._mhubio_ofunc = func._mhubio_ofunc if hasattr(func, '_mhubio_ofunc') else func          
+
             return wrapper
         return decorator
     

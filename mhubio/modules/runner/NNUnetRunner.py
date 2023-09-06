@@ -143,7 +143,7 @@ class NNUnetRunner(Module):
         if not os.path.isdir(os.path.join(os.environ["WEIGHTS_FOLDER"], '')):
             print("Downloading nnUNet model weights...")
             bash_command = ["nnUNet_download_pretrained_model", self.nnunet_task]
-            _ = subprocess.run(bash_command, stdout=subprocess.PIPE)
+            self.subprocess(bash_command, text=True)
 
         # bring input data in nnunet specific format
         # NOTE: only for nifti data as we hardcode the nnunet-formatted-filename (and extension) for now.
@@ -187,7 +187,7 @@ class NNUnetRunner(Module):
             bash_command += ["--save_npz"]
 
         # run command
-        _ = subprocess.run(bash_command, check=True, text=True)
+        self.subprocess(bash_command, text=True)
 
         # output meta
         meta = {

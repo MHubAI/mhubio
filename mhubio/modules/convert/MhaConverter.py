@@ -68,7 +68,7 @@ class MhaConverter(Module):
         
         # run conversion using plastimatch
         pypla.convert(
-            verbose=self.verbose,
+            verbose=self.config.verbose,
             path_to_log_file=log_data.abspath,
             **convert_args_ct
         )
