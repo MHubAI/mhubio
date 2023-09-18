@@ -24,10 +24,21 @@ Email:  leonard.nuernberg@maastrichtuniversity.nl
 """
 
 from typing import Dict, List, Optional, Union, Any, Tuple, Type
-import sys, os, importlib, yaml, shutil
+import argparse, sys, os, importlib, yaml, shutil
 from mhubio.core import Config, Module
 from enum import Enum
 from mhubio.core.Logger import MLog
+
+# update this document with argparse
+parser = argparse.ArgumentParser(description='MHubIO Runner (entrypoint).')
+parser.add_argument('--config', type=str, help='the workflow configuration file')
+parser.add_argument('--workflow', type=str, help='shortcut for --config path/to/default.yml')
+parser.add_argument('--model', type=str, help='only if multiple models are present in the container')
+parser.add_argument('--cleanup', action='store_true', help='clean the output folder and internal folders, use when you start from within the container')
+parser.add_argument('--non-interactive', action='store_true', help='disable interactive mode (only when no workflow is provided and Docker is not startwd using the `-it` flag)')
+parser.add_argument('--debug', action='store_true', help='show debug output')
+parser.add_argument('--print', action='store_true', help='print output to stdout instead of showing a progress bar and disable generation of log files.')
+args, _ = parser.parse_known_args()
 
 # define import paths
 import_paths = {
@@ -73,9 +84,7 @@ class f(str, Enum):
     fnormal     = '\x1B[0m'
     fbold       = '\x1B[1m'
 
-def scan_local_modules() -> Dict[str, str]:
-    base_dir = '/app/models'
-
+def scan_local_modules(base_dir: str = '/app/models') -> Dict[str, str]:
     local_import_paths = {}
 
     for model_dir in os.listdir(base_dir):
@@ -93,12 +102,11 @@ def scan_local_modules() -> Dict[str, str]:
 
     return local_import_paths
 
-def scan_configurations() -> List[Dict[str, str]]:
-    root_dir = '/app/models'
+def scan_configurations(base_dir: str = '/app/models') -> List[Dict[str, str]]:
     configurations = []
 
-    for model_dir in os.listdir(root_dir):
-        configs_path = os.path.join(root_dir, model_dir, 'config')
+    for model_dir in os.listdir(base_dir):
+        configs_path = os.path.join(base_dir, model_dir, 'config')
 
         if not os.path.isdir(configs_path):
             continue
@@ -126,9 +134,11 @@ def print_configurations(configurations: List[Dict], selection: int = 0, interac
     print(f'\n{f.chead}Available configurations:{f.cend}\n')
     for i, config in enumerate(configurations):
         s = '>' if interactive and selection == i else ' '
-        print(f"{s}   {f.cyan}Model: {config['model']}{f.cend}")
+        print(f"{s}   {f.cyan}{config['model']}.{config['name']}{f.cend}")
+        print(f"     {f.cgray}model:  {config['model']}{f.cend}")
+        print(f"     {f.cgray}config: {config['config']}{f.cend}")
         print(f"     {f.cgray+f.fitalics}{config['description']}{f.fnormal}")
-        print(f"     {f.cgray}{config['config']}{f.cend}\n")
+        print()
 
 def interactive_routine(configurations: List[Dict[str, str]]):
     # check support
@@ -183,21 +193,33 @@ def interactive_routine(configurations: List[Dict[str, str]]):
     else:
         return None
 
-def cleanup():
-    shutil.rmtree("/app/data/sorted_data", ignore_errors=True)
-    shutil.rmtree("/app/tmp", ignore_errors=True)
-    shutil.rmtree("/app/data/output_data", ignore_errors=True)
-    shutil.rmtree("/app/data/imported_instances", ignore_errors=True)
-    shutil.rmtree("/app/data/_global", ignore_errors=True)
+def cleanup(verbose: bool = True):
+    
+    # list of directories that are deleted when run with the --cleanup flag
+    delete_dirs = [
+        '/app/tmp',
+        '/app/data/debug',
+        '/app/data/_global',
+        '/app/data/sorted_data',
+        '/app/data/imported_instances',
+        '/app/data/output_data',
+    ]
+
+    # cleanup 
+    if verbose: print(f'{f.chead}Cleaning up...{f.cend}')
+    for d in delete_dirs:
+        if os.path.exists(d):
+            if verbose: print(f'{f.cgray}  - {d}{f.cend}')
+            shutil.rmtree(d, ignore_errors=True)
+    
+    if verbose: print()
 
 def get_config_path(configurations: List[Dict[str, str]]) -> Optional[str]:
 
     # if config file is specified esplicitly, we return it
-    # FIXME: --config conflicting with --config in Config class. Proposed solution: rename --config in mhubio.run to --configfile or --file. 
-    if '--config' in sys.argv:
-        config_file_argv_index = sys.argv.index('--config')
-        if len(sys.argv) > config_file_argv_index + 1:
-            return sys.argv[config_file_argv_index + 1]
+    # FIXME: --config conflicting with --config in Config class. Proposed solution: rename --config in mhubio.run to --configfile or --file.
+    if args.config is not None:
+        return args.config
 
     # check if model is defined or there is only one model present
     models = list(set(c['model'] for c in configurations))
@@ -207,21 +229,14 @@ def get_config_path(configurations: List[Dict[str, str]]) -> Optional[str]:
         model = models[0]
 
         # inform the user that there is just one model and it was selected automatically, so --model will be ignored. However, we'll clean up the commandline in the interactive routine so...
-        if '--model' in sys.argv:
+        if args.model is not None:
             print(f"{f.cyellow+f.fbold}Warning{f.cend+f.fnormal}: There is only one model present in this container, so the --model argument will be ignored. The model '{model}' will be used.")
 
-    elif '--model' in sys.argv:
-        model_argv_index = sys.argv.index('--model')
-        if len(sys.argv) > model_argv_index + 1:
-            model = sys.argv[model_argv_index + 1]
-        
-        # ensure that if --model is used, a mdoel name is specified
-        if model is None:
-            print(f"{f.chead+f.fbold}Error{f.cend+f.fnormal}: You need to specify a model name right after the --model argument.")
-            sys.exit(0)
+    elif args.model is not None:
+        model = args.model
 
         # ensure that if a model is specified, it is present in the container
-        if model is not None and not model in models:
+        if not model in models:
             print(f"{f.chead+f.fbold}Error{f.cend+f.fnormal}: The specified model '{model}' was not found in this container.")
             sys.exit(0)
     
@@ -236,24 +251,16 @@ def get_config_path(configurations: List[Dict[str, str]]) -> Optional[str]:
     workflows = [c['name'] for c in configurations if c['model'] == model]
     workflow = None
 
-    if '--workflow' in sys.argv:
-        workflow_argv_index = sys.argv.index('--workflow')
-        if len(sys.argv) > workflow_argv_index + 1:
-            workflow = sys.argv[workflow_argv_index + 1]
-            
-        # ensure that if --workflow is used, a workflow name is specified
-        if workflow is None:
-            print(f"{f.chead+f.fbold}Error{f.cend+f.fnormal}: You need to specify a workflow name right after the --workflow argument.")
-            sys.exit(0)
+    if args.workflow is not None:
+        workflow = args.workflow
 
         # workflow 'config' and 'default' are used synonymously.
         # TODO: we could check if there are two workflows with either names present but we better forbid using 'config' as a name in the future and encourage the use of 'default' instead.
-
-        if workflow == 'default' and 'config' in workflows:
+        if args.workflow == 'default' and 'config' in workflows:
             workflow = 'config'
 
         # ensure that if a workflow is specified, it is present in the container
-        if workflow is not None and not workflow in workflows:
+        if not workflow in workflows:
             print(f"{f.chead+f.fbold}Error{f.cend+f.fnormal}: The specified workflow '{workflow}' was not found in this container.")
             sys.exit(0)
 
@@ -294,14 +301,14 @@ def run(config_file: Optional[str] = None):
     if '--start-at' in sys.argv:
         start_at = int(sys.argv[sys.argv.index('--start-at') + 1])
 
-        if start_at <= 0:
-            print(f'{f.cyellow+f.fbold} Warning:{f.fnormal+f.cyellow} The specified start-at index is smaller than 1. Just run the workflow without the --start-at flag instead.{f.cend}')
+        if start_at <= 1:
+            print(f'{f.cyellow+f.fbold}Warning:{f.fnormal+f.cyellow} The specified start-at index is smaller than 1.\n         Just run the full workflow (without the --start-at flag) instead.{f.cend}')
             return
 
         # chek if export available under /app/data/debug file_handler_{i}.yml 
         fhexp_path = f'/app/data/debug/file_handler_{start_at-1}.yml'
         if not os.path.exists(fhexp_path):
-            print(f'{f.cyellow+f.fbold} Warning:{f.fnormal+f.cyellow} No export file found at {fhexp_path}. Please run the workflow from the beginning.{f.cend}')
+            print(f'{f.cyellow+f.fbold} Warning:{f.fnormal+f.cyellow} No export file found at {fhexp_path}. Please run the workflow from the beginning using the --export-file-handler flag.{f.cend}')
             return
         
         # check if workflow is long enough
@@ -310,7 +317,7 @@ def run(config_file: Optional[str] = None):
             return
         
         # remove all modules before start_at
-        workflow = workflow[start_at:]
+        workflow = workflow[start_at-1:]
 
         # print new workflow
         print(f'\n{f.cyan+f.fbold} Workflow:{f.cend}')
@@ -324,7 +331,7 @@ def run(config_file: Optional[str] = None):
         print()
 
         # print inital debug
-        if '--debug' in sys.argv:
+        if args.debug:
             print(f'{f.cyan+f.fbold} Initial debug:{f.cend}')
             config.data.printInstancesOverview()
 
@@ -338,9 +345,9 @@ def run(config_file: Optional[str] = None):
 
     # prepare MLog
     logger: Optional[MLog] = None
-    if not '--print' in sys.argv:
+    if not args.print:
         logger = MLog(config)
-        logger.showProgress = '--debug' not in sys.argv
+        logger.showProgress = not args.debug
         config.useLogger(logger)
 
         for (m, _) in workflow:
@@ -365,10 +372,10 @@ def run(config_file: Optional[str] = None):
         if '--export-file-handler' in sys.argv:
             if not os.path.exists('/app/data/debug'):
                 os.makedirs('/app/data/debug')
-            config.data.export_yml(f'/app/data/debug/file_handler_{i}.yml')
+            config.data.export_yml(f'/app/data/debug/file_handler_{i+1}.yml')
 
-        if '--debug' in sys.argv:
-            if not '--print' in sys.argv: 
+        if args.debug:
+            if not args.print:
                 print(f'\n{f.cyan+f.fbold} {class_name}:{f.cend}')
             print()
             config.data.printInstancesOverview()
@@ -376,7 +383,7 @@ def run(config_file: Optional[str] = None):
 if __name__ == '__main__':
 
     # interactive mode?
-    interactive = '--non-interactive' not in sys.argv
+    interactive = not args.non_interactive
 
     # scan configurations
     configurations = scan_configurations()
@@ -410,7 +417,7 @@ if __name__ == '__main__':
     #       allowing the user plans to run using the minimal default config.
     
     # cleanup
-    if '--cleanup' in sys.argv and not '--start-at' in sys.argv:
+    if args.cleanup and not '--start-at' in sys.argv:
         cleanup()
 
     # run
