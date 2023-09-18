@@ -117,6 +117,7 @@ class ReportExporter(Module):
             value = None    
 
             # extract value based on include directive
+            # TODO: we may check that 'static', 'attr', 'files', 'data', 'meta' actually is the FIRST key of the include dict
             try:
                 if 'static' in include:
                     value = include['value']
@@ -125,10 +126,10 @@ class ReportExporter(Module):
                     value = instance.attr[include['attr']]
 
                 elif 'files' in include:
-                    files = instance.data.asList() if include['files'] is None else instance.data.filter(include['files']) 
+                    files = instance.data if include['files'] is None else instance.data.filter(include['files']) 
 
                     aggregate = include['aggregate'] if 'aggregate' in include else 'list'
-                    assert aggregate in ['list', 'count']
+                    assert aggregate in ['list', 'count', 'first']
 
                     # extract a list or a count
                     if aggregate == 'list':
@@ -145,6 +146,13 @@ class ReportExporter(Module):
 
                     elif aggregate == 'count':
                         value = len(files)
+
+                    elif aggregate == 'first':
+                        file = files.ask(0)
+                        assert 'pattern' in include, "Pattern must be specified."
+                        pattern = include['pattern']
+                        assert file is not None, "No file found for include directive."
+                        value = DataOrganizer.resolveTarget(pattern, file)
 
                 elif 'data':
 
@@ -195,7 +203,7 @@ class ReportExporter(Module):
 
             # report errors
             except Exception as e:
-                print("Error while generating report for ", include)
+                self.log("Error while generating report for ", include, ": ", str(e), level=MLogLevel.ERROR)
 
         # compact
         if self.format == 'compact':
