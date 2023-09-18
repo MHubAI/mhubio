@@ -80,7 +80,7 @@ class DataHandler(DirectoryChainInterface):
 
     def export_yml(self, path: str) -> None:
         instances = []
-        for instance in self.instances:
+        for instance in [self.globalInstance, *self.instances]:
             instance_dict = {
                 'attr': instance.attr,
                 'dc': {
@@ -127,10 +127,13 @@ class DataHandler(DirectoryChainInterface):
         # create instances
         for instance in instances:
 
-            # create instance
-            i = Instance(path=instance['dc']['path'])
-            i.attr = instance['attr']
-            self.addInstance(i)
+            # use global / create instance
+            if instance['attr']['id'] != 'global':
+                i = Instance(path=instance['dc']['path'])
+                i.attr = instance['attr']
+                self.addInstance(i)
+            else:
+                i = self.globalInstance
 
             # add data
             for files in instance['files']:
