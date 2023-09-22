@@ -24,8 +24,7 @@ class ConsoleCapture:
     def __init__(self, logger: Optional['MLog'], display_on_console=False):
         self.logger = logger
         self.display_on_console = display_on_console
-        self.stdout_messages = []
-        self.stderr_messages = []
+        self.buffer = ""
         self.original_stdout = sys.stdout
         self.original_stderr = sys.stderr
 
@@ -39,18 +38,30 @@ class ConsoleCapture:
 
     def __exit__(self, exc_type, exc_value, traceback):
         if self.logger is None: 
-            return self
+            return
         
         sys.stdout = self.original_stdout
         sys.stderr = self.original_stderr
 
+        if len(self.buffer):
+            assert "/n" not in self.buffer, "Buffer should not contain newlines."
+            self.logger.log(self.buffer, level=MLogLevel.CAPTURED)
+
+    def buff(self, text: str):
+        if not self.logger:
+            return
+        
+        self.buffer += text
+        lines = self.buffer.split("\n")
+        self.buffer = lines[-1]
+
+        for line in lines[:-1]:
+            self.logger.log(line, level=MLogLevel.CAPTURED)
+
     def write(self, message):
         if message:
-            if sys.stdout == self:
-                self.stdout_messages.append(message)
-            elif sys.stderr == self:
-                self.stderr_messages.append(message)
-            
+            self.buff(message)
+                
             if self.display_on_console:
                 self.original_stdout.write(message)
                 self.original_stdout.flush()
@@ -67,13 +78,14 @@ def format_seconds(seconds: int) -> str:
     else:
         return "%d:%02d" % (m, s)
 
-class MLogLevel(int, Enum):
-    NOTICE = 0
-    WARNING = 10
-    DEPRECATED = 11
-    ERROR = 20
-    DEBUG = 100
-    EXTERNAL = 1000
+class MLogLevel(str, Enum):
+    NOTICE = 'NOTICE'
+    WARNING = 'WARNING'
+    DEPRECATED = 'DEPRECATED'
+    ERROR = 'ERROR'
+    DEBUG = 'DEBUG'
+    EXTERNAL = 'EXTERNAL'
+    CAPTURED = 'CAPTURED'
 
     # print level
     def __str__(self):
@@ -301,7 +313,7 @@ class MLog:
             self.p()
 
 
-    def log(self, *args, level: Union[int, MLogLevel] = MLogLevel.NOTICE):
+    def log(self, *args, level: Union[str, MLogLevel] = MLogLevel.NOTICE):
         """Log a message. 
 
         By default, all messsages are logged into a file, bound to the current module and instance (if available). All calls to `Module.v()` and `Module.log()` are redirected to this method.
@@ -321,7 +333,7 @@ class MLog:
             level (Union[int, MLogLevel], optional): The level of the log message. Defaults to MLogLevel.NOTICE.
         """
         # convert int level to MLogLevel
-        if isinstance(level, int):
+        if isinstance(level, str):
             level = MLogLevel(level)
 
         # get timestamp and format to dd.mm.yy hh:mm:ss
@@ -331,9 +343,6 @@ class MLog:
         # construct message
         msg = " ".join([str(arg) for arg in args])
         msg = f"[{str(level)}|{timestamp}]: {msg}"
-
-        # 
-        self.updateProgress()
 
         # collect all log messages
         self.cacheLogMessage(msg)

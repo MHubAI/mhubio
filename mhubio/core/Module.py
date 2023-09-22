@@ -47,7 +47,7 @@ class Module:
         
         self.log(*args, level=MLogLevel.NOTICE)
 
-    def log(self, *args, level: Union[int, MLogLevel] = MLogLevel.NOTICE) -> None:
+    def log(self, *args, level: Union[str, MLogLevel] = MLogLevel.NOTICE) -> None:
         """ Log messages for the module.
         Messages are logged to a log file and bound to an instance if possible.
         """

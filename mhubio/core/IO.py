@@ -166,13 +166,15 @@ class IO:
                 # global instacne (exclude from instace logging, log on module level)
                 if include_global_instance:
                     try:
-                        with ConsoleCapture(self.config.logger) as output:
+                        with ConsoleCapture(self.config.logger):
                             func(self, self.config.data.globalInstance, *args, **kwargs)
                     except Exception as e:
-                        self.v(f"ERROR: {self.__class__.__name__} failed processing instance {str(self.config.data.globalInstance)}: {str(e)} in {traceback.format_exc()}")
+                        self.log(f"ERROR: {self.__class__.__name__} failed processing instance {str(self.config.data.globalInstance)}: {str(e)} in {traceback.format_exc()}", level='ERROR')
 
                 # iterate through all instances
                 for instance in self.config.data.instances:
+                    #if instance.attr['status'] == 'failed' and not include_failed_instances:
+                    #    continue
                     try:
 
                         # start instance logging if MLog is set-up
@@ -185,7 +187,10 @@ class IO:
 
                     except Exception as e:
                         # TODO: add logging, generate final report
-                        self.v(f"ERROR: {self.__class__.__name__} failed processing instance {str(instance)}: {str(e)} in {traceback.format_exc()}")
+                        self.log(f"ERROR: {self.__class__.__name__} failed processing instance {str(instance)}: {str(e)} in {traceback.format_exc()}", level='ERROR')
+
+                        # set instance status attribute 
+                        # instance.attr['status'] = 'failed' (-> for this add 'status: ok' to default instance.attr)
                    
                     finally:
                         # finish instance logging if MLog is set-up 

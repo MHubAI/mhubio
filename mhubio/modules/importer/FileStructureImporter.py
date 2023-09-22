@@ -17,6 +17,7 @@ Date:   28.02.2022
 from typing import List, Dict, Optional 
 from typing_extensions import TypedDict, NotRequired
 from mhubio.core import Module, Instance, InstanceData, InstanceDataBundle, DataType, IO
+from mhubio.core.Logger import ConsoleCapture
 import os, csv, copy, uuid, re, shutil
 
 class ScanFeature(TypedDict):
@@ -62,6 +63,11 @@ class FileStructureImporter(Module):
     outsource_instances: bool
    
     def task(self) -> None:
+        with ConsoleCapture(self.config.logger):
+            self.runDataImporter()
+
+    def runDataImporter(self) -> None:
+
         # scan input definitions
         input_dir = os.path.join(self.config.data.abspath, self.input_dir)
         instances_dir = os.path.join(self.config.data.abspath, self.instance_dir)

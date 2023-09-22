@@ -30,14 +30,14 @@ from enum import Enum
 from mhubio.core.Logger import MLog
 
 # update this document with argparse
-parser = argparse.ArgumentParser(description='MHubIO Runner (entrypoint).')
-parser.add_argument('--config', type=str, help='the workflow configuration file')
-parser.add_argument('--workflow', type=str, help='shortcut for --config path/to/default.yml')
-parser.add_argument('--model', type=str, help='only if multiple models are present in the container')
-parser.add_argument('--cleanup', action='store_true', help='clean the output folder and internal folders, use when you start from within the container')
-parser.add_argument('--non-interactive', action='store_true', help='disable interactive mode (only when no workflow is provided and Docker is not startwd using the `-it` flag)')
-parser.add_argument('--debug', action='store_true', help='show debug output')
-parser.add_argument('--print', action='store_true', help='print output to stdout instead of showing a progress bar and disable generation of log files.')
+parser = argparse.ArgumentParser(description='MHubIO Runner')
+parser.add_argument('--config', type=str, help='The workflow configuration file.')
+parser.add_argument('--workflow', type=str, help='Instead of specifying the absolute path to the config file in the --config argument, specify the workflow which is the filename of the config file without the .yml extension.')
+parser.add_argument('--model', type=str, help='Use this argument to specify the model where the workflow belongs to. This is only necessary if multiple models are present in the container.')
+parser.add_argument('--cleanup', action='store_true', help='Clean the output folder and internal folders. Use this flag if you execute mhub from within the container.')
+parser.add_argument('--non-interactive', action='store_true', help='Disable interactive mode (only effective when no workflow is provided and Docker is not startwd using the `-it` flag).')
+parser.add_argument('--debug', action='store_true', help='Print a list of the internal data structure of MHub after each executed Module (step of the workflow).')
+parser.add_argument('--print', action='store_true', help='Print output to stdout instead of showing a progress bar and disable generation of log files.')
 args, _ = parser.parse_known_args()
 
 # define import paths
