@@ -1,5 +1,6 @@
 """
 -------------------------------------------------
+DEPRECATED MODULE - DO NOT USE
 MHub - Special NRRD importer for 3D Slicer plugin
 -------------------------------------------------
 
@@ -9,9 +10,19 @@ Email:  leonard.nuernberg@maastrichtuniversity.nl
 -------------------------------------------------
 """
 
+from mhubio.core import Config
 from mhubio.modules.importer.DataImporter import DataImporter
 
 class NrrdImporter(DataImporter):
+
+    def __init__(self, config: Config, **kwargs) -> None:
+        super().__init__(config, **kwargs)
+
+        # deprecation warning
+        print("----------------------------------------------------------------------------")
+        print("Deprecation Warning - importer.NrrdImporter initialized")
+        print("NrrdImporter are replaced by the new universal FileStructureImporter.")
+        print("----------------------------------------------------------------------------")
 
     def task(self) -> None:
         # input nrrd file name
