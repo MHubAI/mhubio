@@ -60,8 +60,12 @@ class ConsoleCapture:
 
     def write(self, message):
         if message:
-            self.buff(message)
-                
+            if sys.stdout == self:
+                self.buff(message)
+
+            elif sys.stderr == self:
+                self.buff(message)
+            
             if self.display_on_console:
                 self.original_stdout.write(message)
                 self.original_stdout.flush()

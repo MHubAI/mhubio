@@ -105,6 +105,7 @@ class InstanceDataCollection:
             self._data.append(data)
 
     def sort(self):
+        """sorting all instacne data (files) by their absolute path"""
         self._data.sort(key=lambda d: d.abspath)
 
     def __len__(self) -> int:

@@ -11,7 +11,7 @@ Email:  leonard.nuernberg@maastrichtuniversity.nl
 
 from enum import Enum
 from typing import List, Dict, Any
-from mhubio.core import Module, Instance, InstanceData, DataType, Meta, IO
+from mhubio.core import Module, Instance, InstanceData, DataType, Meta, IO, DataTypeQuery
 from mhubio.core.Logger import MLogLevel
 from mhubio.modules.organizer.DataOrganizer import DataOrganizer
 from mhubio.core.RunnerOutput import ClassOutput, ValueOutput
@@ -25,7 +25,7 @@ class ReportFormat(str, Enum):
 @IO.Config('globalreport', bool, False, the='flag to indicate whether to generate a global report or a report for each instance')
 @IO.Config('format', ReportFormat, 'compact', factory=ReportFormat, the='format of the report (separated|nested|compact)')
 @IO.Config('includes', List[Dict[str, Any]], [], the='list of data types to include in the report')
-@IO.Config('meta', dict, {'mod': '%Modality'}, the="additional meta data attached to report")
+@IO.Config('meta', dict, {'mod': 'report'}, the="additional meta data attached to report")
 @IO.Config('csv', bool, False, the="experimental flag to export the compact global report as csv instead of json.")
 class ReportExporter(Module):
 
@@ -157,9 +157,13 @@ class ReportExporter(Module):
                 elif 'data':
 
                     # fetch the data
-                    data = [d for d in instance.outputData if d.name == include['data']]
+                    data = instance.outputData.filter(include['data'])
+
+                    # query must be specific enough to identify a single output data object
                     assert len(data) == 1, "data name not unique."
-                    data = data[0]
+                    data = data.get(0)
+
+                    # output data object must be an instacne of value output or class output 
                     assert isinstance(data, ValueOutput) or isinstance(data, ClassOutput)
 
                     # extract description, value or class probability

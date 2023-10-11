@@ -9,11 +9,13 @@ Email:  leonard.nuernberg@maastrichtuniversity.nl
 -------------------------------------------------
 """
 
-from typing import List
-from enum import Enum
+from typing import TypeVar, List, Union
 from .Meta import Meta
 from .DataType import DataType
+from .RunnerOutput import RunnerOutput, ValueOutput, ClassOutput
 import re
+
+T = TypeVar('T', bound=Union[DataType, RunnerOutput])
 
 class DataTypeQuery:
 
@@ -68,15 +70,15 @@ class DataTypeQuery:
     def exec(self, ref_type: DataType) -> bool:
         return self.parse(self.query, ref_type)
 
-    def filter(self, ref_types: List[DataType]) -> List[DataType]:
-        matching_types: List[DataType] = []
+    def filter(self, ref_types: List[T]) -> List[T]:
+        matching_types: List[T] = []
         for ref_type in ref_types:
             if self.parse(self.query, ref_type):
                 matching_types.append(ref_type)
         return matching_types
     
     @classmethod
-    def parse(cls, query: str, ref_type: DataType) -> bool:
+    def parse(cls, query: str, ref_type: Union[DataType, RunnerOutput]) -> bool:
 
         # tokenize query
         tokens = cls.tokenize(query)
@@ -145,7 +147,7 @@ class DataTypeQuery:
         return tokens
 
     @classmethod
-    def evaluate(cls, expr: str, ref_type: DataType) -> bool:
+    def evaluate(cls, expr: str, ref_type: Union[DataType, RunnerOutput]) -> bool:
 
         # check value is already fully resolced and evaluated
         if expr == 'TRUE':
@@ -161,12 +163,42 @@ class DataTypeQuery:
         # evaluate single expression
         ftype_def, *metas_def = expr.split(':')
 
+        # reference meta 
+        #  we use empty meta if meta is None as Meta is optional for RunnerOutput instances
+        ref_meta = ref_type.meta or Meta()
+
         # type matching
-        if not str(ref_type.ftype.value).lower() in ftype_def.lower().split('|') and ftype_def.lower() != 'any':
-            return False
+        if isinstance(ref_type, DataType): # ftype_def -> | separated list of file types
+            if not str(ref_type.ftype.value).lower() in ftype_def.lower().split('|') and ftype_def.lower() != 'any':
+                return False
+            
+        elif isinstance(ref_type, RunnerOutput): # ftype_def -> | separated list of data names (identifyers)
+            if not str(ref_type.name).lower() in ftype_def.lower().split('|') and ftype_def.lower() != 'any':
+                return False
+
+            # enhance 
+            ref_meta += {
+                '.name': ref_type.name,
+                '.label': ref_type.label,
+                '.description': ref_type.description
+            }
+
+            if isinstance(ref_type, ValueOutput):
+                ref_meta += {
+                    '.dtype': ref_type.dtype,
+                    '.value': ref_type.value
+                }
+
+            elif isinstance(ref_type, ClassOutput) and ref_type.value is not None:
+                #'.classes.label': [c.label for c in ref_type.classes],
+                #'.classes.probability': [c.probability for c in ref_type.classes],
+                #'.classes.description': [c.description for c in ref_type.classes],
+                ref_meta += {
+                    '.value': ref_type.value
+                }
 
         # meta matching
-        return all(cls.evaluateMeta(md, ref_type.meta) for md in metas_def)
+        return all(cls.evaluateMeta(md, ref_meta) for md in metas_def)
         
     @classmethod
     def evaluateMeta(cls, kov: str, ref_meta: Meta, verbose: bool = False) -> bool:
@@ -301,7 +333,7 @@ class DataTypeQuery:
             
             # requires both sides to be numbers
             # TODO: revisit and should we test v earlier (befor k in ref_meta check)?
-            assert v.isnumeric() and ref_meta[k].isnumeric()
+            assert v.isnumeric() and str(ref_meta[k]).isnumeric()
         
             return int(ref_meta[k]) > int(v)
         
@@ -314,10 +346,14 @@ class DataTypeQuery:
             
             # requires both sides to be numbers
             # TODO: revisit and should we test v earlier (befor k in ref_meta check)?
-            assert v.isnumeric() and ref_meta[k].isnumeric()
+            assert v.isnumeric() and str(ref_meta[k]).isnumeric()
 
             return int(ref_meta[k]) < int(v)
 
 
         else:
             raise Exception("Invalid operator in key operator value string")
+
+
+    def __str__(self):
+        return self.query

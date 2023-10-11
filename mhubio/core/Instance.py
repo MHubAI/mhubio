@@ -27,7 +27,8 @@ class Instance(DirectoryChainInterface):
         super().__init__(path=path, parent=None, base=None)
         self._handler: Optional['DataHandler'] = None                   # NOTE: handler is set delayed but is NOT OPTIONAL !
         self.data: InstanceDataCollection = InstanceDataCollection()    # TODO: rename to files (and rename InstanceData to InstanceFile etc.)
-        self.outputData: List[RunnerOutput] = []
+        #self.outputData: List[RunnerOutput] = []
+        self.outputData: OutputDataCollection = OutputDataCollection()
         self.attr: Dict[str, str] = {'id': str(uuid.uuid4())}
 
     @property
@@ -177,7 +178,8 @@ class Instance(DirectoryChainInterface):
         self.data.add(data)
 
     def setData(self, output: Any):
-        self.outputData.append(output)
+        #self.outputData.append(output)
+        self.outputData.add(output)
 
     def setAttribute(self, key: str, value: Any):
         self.attr[key] = value
@@ -203,3 +205,4 @@ from .DataHandler import DataHandler
 from .InstanceData import InstanceData
 from .InstanceDataBundle import InstanceDataBundle
 from .InstanceDataCollection import InstanceDataCollection
+from .OutputDataCollection import OutputDataCollection
