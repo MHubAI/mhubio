@@ -48,6 +48,7 @@ import_paths = {
     'FileListImporter': 'mhubio.modules.importer.FileListImporter',
 
     'AttributeFilter': 'mhubio.modules.filter.AttributeFilter',
+    'FileFilter': 'mhubio.modules.filter.FileFilter',
 
     'DicomConverter': 'mhubio.modules.convert.DicomConverter',
     'NiftiConverter': 'mhubio.modules.convert.NiftiConverter',

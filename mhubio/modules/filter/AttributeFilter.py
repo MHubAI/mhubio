@@ -10,13 +10,18 @@ Email:  leonard.nuernberg@maastrichtuniversity.nl
 """
 
 from typing import List
-from mhubio.modules.filter.DataFilter import DataFilter
+from mhubio.modules.filter.InstanceFilter import InstanceFilter
 from mhubio.core import Instance, IO
 
 @IO.Config("instance_attributes", dict, {}, the="instance attributes to filter for")
-class AttributeFilter(DataFilter):
+class AttributeFilter(InstanceFilter):
 
     instance_attributes: dict
+
+    def explain_criteria(self):
+        self.log("This filter will exclude all instances that do not have at least one attribute matching any of the following criteria:")
+        for k, v in self.instance_attributes: 
+            self.log("-", k, "=", v)
 
     def filter(self, instances: List[Instance]) -> List[Instance]:
         matching_instances = []
