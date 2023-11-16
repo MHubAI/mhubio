@@ -13,7 +13,7 @@ def read(fname):
 
 setuptools.setup(
     name = "mhubio",
-    version = "0.0.1",
+    version = "0.0.2",
     author = "Leonard Nürnberg",
     author_email = "lnuernberg@bwh.harvard.edu",
     description = ("The glue layer framework used to harmonize MHub model's input and output data."),
@@ -22,8 +22,11 @@ setuptools.setup(
     url = "https://github.com/MHubAI/mhubio",
     packages=setuptools.find_packages(),
     long_description=read('README.md'),
-    package_data={'': ['utils/ymldicomseg/data/*.csv']},
     include_package_data=True,
+    install_requires=[
+        "pyyaml",
+        "typing_extensions==4.5.0"
+    ],
     classifiers=[
         "Development Status :: 4 - Beta",
         "Topic :: Software Development :: Libraries :: Python Modules",
