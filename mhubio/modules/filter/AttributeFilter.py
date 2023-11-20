@@ -20,7 +20,7 @@ class AttributeFilter(InstanceFilter):
 
     def explain_criteria(self):
         self.log("This filter will exclude all instances that do not have at least one attribute matching any of the following criteria:")
-        for k, v in self.instance_attributes: 
+        for k, v in self.instance_attributes.items(): 
             self.log("-", k, "=", v)
 
     def filter(self, instances: List[Instance]) -> List[Instance]:
