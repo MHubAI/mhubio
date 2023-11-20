@@ -422,21 +422,34 @@ def scan_directory(start_dir: str, structures: List[str], excludes: List[str], m
 
 
                 # instance import
-                if imp == 'instance':
+                if imp.split(':')[0] == 'instance':
                     instance_id = str(uuid.uuid4())
 
                     if os.path.isfile(os.path.join(start_dir, dir)) and verbose:
                         print("> WARNING: instance import on file level. Instacnes need a base folder that must be created in that case. Random instance_id can be used as ref, set import_id: _instance in config.")
 
+                    static_instance_meta = dict(kvp.split('=') for kvp in imp.split(':')[1:]) if ':' in imp else {}
+
                     imports.append({
                         'path':     os.path.join(start_dir, dir),
-                        'meta':    {'_instance': instance_id, **_meta},
+                        'meta':    {'_instance': instance_id, **_meta, **static_instance_meta},
                         'dtype':    'instance'
                     })
                     _meta: Dict[str, str] = {
                         **_meta,
+                        **static_instance_meta,
                         '_instance': instance_id
                     }
+
+                # instance meta import
+                # simply write teh same @instance when using static meta for each structure line (so although this works, no need for yet another keyword)
+                # elif imp.split(':')[0] == 'meta':
+
+                #     static_instance_meta = dict(kvp.split('=') for kvp in imp.split(':')[1:]) if ':' in imp else {}
+                #     _meta: Dict[str, str] = {
+                #         **_meta,
+                #         **static_instance_meta
+                #     }
 
                 # bundle import
                 elif imp == "" or imp == "bundle":
