@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Type, Any, List, Optional, Union, Dict
+from typing import Type, Any, List, Optional, Union, Dict, Callable
 from .Meta import Meta
 
 class RunnerOutputType(Enum):
@@ -91,7 +91,7 @@ class ValueOutput(RunnerOutput):
 
 class OutputClass():
     classID: Union[int, str]
-    probability: Optional[float] = None
+    _probability: Optional[float] = None
     label: str
     description: str
 
@@ -100,11 +100,22 @@ class OutputClass():
         self.label = label
         self.description = description
 
+    @property
+    def probability(self) -> Optional[float]:
+        return self._probability
+
+    @probability.setter
+    def probability(self, probability: Optional[float]):
+        assert probability is None or (isinstance(probability, float) and probability >= 0.0 and probability <= 1.0), \
+            f"Probability {probability} is not a float between 0.0 and 1.0."
+        self._probability = probability
+
     def __str__(self):
         return f"[C:{self.classID}:{self.label}]({self.probability})"
 
 class ClassOutput(RunnerOutput):
 
+    template_classes: List[Callable[[], OutputClass]]
     classes: List[OutputClass]
     _classID: Optional[Union[str, int]]
 
@@ -113,8 +124,12 @@ class ClassOutput(RunnerOutput):
         self.type = RunnerOutputType.ClassPrediction
 
         # reverse classes list, so top most decorator has index 0
-        if hasattr(self, 'classes') and isinstance(self.classes, list):
-            self.classes.reverse() 
+        if hasattr(self, 'template_classes') and isinstance(self.template_classes, list):
+            self.template_classes.reverse() 
+
+            self.classes = []
+            for template_class in self.template_classes:
+                self.classes.append(template_class())
 
     @property
     def value(self) -> Optional[Union[str, int]]:
@@ -164,9 +179,13 @@ class ClassOutput(RunnerOutput):
     @staticmethod
     def Class(classID: Union[int, str], label: str, the: str):
         def decorator(cls):
-            if not hasattr(cls, 'classes'):
-                cls.classes = []
-            cls.classes.append(OutputClass(classID, label, the))
+
+            def class_factory():
+                return OutputClass(classID, label, the)
+
+            if not hasattr(cls, 'template_classes'):
+                cls.template_classes = []
+
+            cls.template_classes.append(class_factory)
             return cls
         return decorator
-
