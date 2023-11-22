@@ -171,10 +171,10 @@ class DataOrganizer(Module):
                     else:
                         raise FileNotFoundError(f"Could not copy {inp_data.abspath} to {out_path}. File not found.")
                     
-                    # set permissions to 777 (iteratively for directories)
+                    # set permissions to 666 (files) and 777 (directories), iteratively for directories
                     if self.set_file_permissions: 
                         if os.path.isfile(out_path):
-                            os.chmod(out_path, 0o777)
+                            os.chmod(out_path, 0o666)
                         elif os.path.isdir(out_path):
                             for dirpath, _, filenames in os.walk(out_path):
                                 os.chmod(dirpath, 0o777)
