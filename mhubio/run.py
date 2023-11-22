@@ -38,6 +38,7 @@ parser.add_argument('--cleanup', action='store_true', help='Clean the output fol
 parser.add_argument('--non-interactive', action='store_true', help='Disable interactive mode (only effective when no workflow is provided and Docker is not startwd using the `-it` flag).')
 parser.add_argument('--debug', action='store_true', help='Print a list of the internal data structure of MHub after each executed Module (step of the workflow).')
 parser.add_argument('--print', action='store_true', help='Print output to stdout instead of showing a progress bar and disable generation of log files.')
+parser.add_argument('--stop-on-error', action='store_true', help='Stop execution if an error occurs. Only valid, when --print is set.')
 args, _ = parser.parse_known_args()
 
 # define import paths
@@ -382,6 +383,10 @@ def run(config_file: Optional[str] = None):
             config.data.printInstancesOverview()
 
 if __name__ == '__main__':
+
+    # stop at error?
+    if args.stop_on_error and args.print:
+        os.environ['MLOG_STOP_ON_ERROR'] = 'YES'
 
     # interactive mode?
     interactive = not args.non_interactive
