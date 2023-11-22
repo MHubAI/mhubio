@@ -1,6 +1,7 @@
 from .Meta import Meta
 
 # define common modality types
+CR      = Meta(mod="CR")        # Computed Radiography
 CT      = Meta(mod="CT")        # Computed Tomography
 CBCT    = Meta(mod="CBCT")      # Cone Beam CT (Has DICOM a predefined modality value for cbct?))
 MR      = Meta(mod="MR")        # Magnetic Resonance
