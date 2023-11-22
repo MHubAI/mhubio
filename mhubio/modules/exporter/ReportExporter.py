@@ -14,7 +14,7 @@ from typing import List, Dict, Any
 from mhubio.core import Module, Instance, InstanceData, DataType, Meta, IO, DataTypeQuery
 from mhubio.core.Logger import MLogLevel
 from mhubio.modules.organizer.DataOrganizer import DataOrganizer
-from mhubio.core.RunnerOutput import ClassOutput, ValueOutput
+from mhubio.core.RunnerOutput import RunnerOutput, ClassOutput, ValueOutput
 import json, csv, os
 
 class ReportFormat(str, Enum):
@@ -157,44 +157,77 @@ class ReportExporter(Module):
                 elif 'data':
 
                     # fetch the data
-                    data = instance.outputData.filter(include['data'])
+                    datas = instance.outputData.filter(include['data'])
 
-                    # query must be specific enough to identify a single output data object
-                    assert len(data) == 1, "data name not unique."
-                    data = data.get(0)
+                    # as query can fetch multiple matching outputs, we need to specify an aggregate similar to files above
+                    aggregate = include['aggregate'] if 'aggregate' in include else 'one' #'list'
+                    assert aggregate in ['list', 'count', 'first', 'one', 'sum', 'avg']
 
-                    # output data object must be an instacne of value output or class output 
-                    assert isinstance(data, ValueOutput) or isinstance(data, ClassOutput)
+                    def data2value(data: RunnerOutput) -> Any:
+                        
+                        # output data object must be an instacne of value output or class output 
+                        assert isinstance(data, ValueOutput) or isinstance(data, ClassOutput)
 
-                    # extract description, value or class probability
-                    if include['value'] == 'description' and 'class' not in include:
-                        value = data.description
+                        # extract description, value or class probability
+                        if include['value'] == 'description' and 'class' not in include:
+                            value = data.description
 
-                    elif include['value'] == 'label' and 'class' not in include:
-                        value = data.label
+                        elif include['value'] == 'label' and 'class' not in include:
+                            value = data.label
 
-                    elif include['value'] == 'value' and 'class' not in include:
-                        value = data.value
+                        elif include['value'] == 'value' and 'class' not in include:
+                            value = data.value
 
-                    elif include['value'] == 'type':
-                        assert isinstance(data, ValueOutput), "type attribute only available for value outputs."
-                        if data.dtype == float: value = "float"
-                        elif data.dtype == int: value = "int"
-                        elif data.dtype == str: value = "str"
-                        elif data.dtype == bool: value = "bool"
-                        else: value = str(data.dtype)
+                        elif include['value'] == 'type':
+                            assert isinstance(data, ValueOutput), "type attribute only available for value outputs."
+                            if data.dtype == float: value = "float"
+                            elif data.dtype == int: value = "int"
+                            elif data.dtype == str: value = "str"
+                            elif data.dtype == bool: value = "bool"
+                            else: value = str(data.dtype)
 
-                    elif include['value'] == 'description' and 'class' in include:
-                        assert isinstance(data, ClassOutput), "only use the class attribute on class prediction output types."
-                        value = data[include['class']].description
+                        elif include['value'] == 'description' and 'class' in include:
+                            assert isinstance(data, ClassOutput), "only use the class attribute on class prediction output types."
+                            value = data[include['class']].description
 
-                    elif include['value'] == 'label' and 'class' in include:
-                        assert isinstance(data, ClassOutput), "only use the class attribute on class prediction output types."
-                        value = data[include['class']].label
+                        elif include['value'] == 'label' and 'class' in include:
+                            assert isinstance(data, ClassOutput), "only use the class attribute on class prediction output types."
+                            value = data[include['class']].label
 
-                    elif include['value'] in ['value', 'probability'] and 'class' in include:
-                        assert isinstance(data, ClassOutput), "only use the class attribute on class prediction output types."
-                        value = data[include['class']].probability
+                        elif include['value'] in ['value', 'probability'] and 'class' in include:
+                            assert isinstance(data, ClassOutput), "only use the class attribute on class prediction output types."
+                            value = data[include['class']].probability
+
+                        else:
+                            value = None
+
+                        # return
+                        return value
+
+                    if aggregate == 'one':
+                        assert len(datas) == 1, "Query must return exactly one matching output if aggregate is set to 'one'."
+                        data = datas.first()
+                        value = data2value(data)
+                    
+                    elif aggregate == 'first': 
+                        data = datas.first()
+                        value = data2value(data)
+
+                    elif aggregate == 'list':
+                        delimiter = include['delimiter'] if 'delimiter' in include else None
+
+                        values_list = [data2value(data) for data in datas]
+                        value = delimiter.join(values_list) if delimiter is not None and isinstance(delimiter, str) else values_list
+  
+                    elif aggregate == 'count':
+                        value = len(datas)
+
+                    elif aggregate == 'sum':
+                        value = sum([data2value(data) for data in datas])
+
+                    elif aggregate == 'avg':
+                        value = sum([data2value(data) for data in datas]) / len(datas)
+                    
                     
                 # break if no value was generated
                 assert value is not None
@@ -208,6 +241,10 @@ class ReportExporter(Module):
             # report errors
             except Exception as e:
                 self.log("Error while generating report for ", include, ": ", str(e), level=MLogLevel.ERROR)
+            
+                # if stop on error is enabled, raise exception
+                if os.environ.get('MLOG_STOP_ON_ERROR') == 'YES':
+                    raise e from None
 
         # compact
         if self.format == 'compact':

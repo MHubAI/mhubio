@@ -1,7 +1,7 @@
 
 from typing import TypeVar, Callable, Any, Optional, Union, Type, List, Dict
 from typing_extensions import ParamSpec, Concatenate, get_origin
-from mhubio.core import Module, Instance, InstanceData, InstanceDataCollection, DataType, Meta, DataTypeQuery
+from mhubio.core import Module, Instance, InstanceData, InstanceDataCollection, DataType, Meta, DataTypeQuery, OutputDataCollection
 from mhubio.core.RunnerOutput import RunnerOutput
 from inspect import signature
 import os, traceback
@@ -191,6 +191,12 @@ class IO:
 
                         # set instance status attribute 
                         # instance.attr['status'] = 'failed' (-> for this add 'status: ok' to default instance.attr)
+                        
+                        # alternative aproach, stopping when exceptions are thrown.
+                        # environment variable can be set e.g. in Dockerfile 
+                        # or via command line using --print --stop-on-error
+                        if os.environ.get('MLOG_STOP_ON_ERROR') == 'YES':
+                            raise e from None
                    
                     finally:
                         # finish instance logging if MLog is set-up 
@@ -229,12 +235,6 @@ class IO:
     
     @staticmethod
     def OutputData(name: str, type: Type[OT], data: Optional[str] = None, the: Optional[str] = None) -> Callable[[Callable[Concatenate[T, 'Instance', P], None]], Callable[[T, 'Instance'], None]]:
-        if the is not None: 
-            type.description = the
-
-        if not hasattr(type, 'description') or not type.description:
-            raise IOError(f"OutputData {name} must have a description.")
-
         def decorator(func: Callable[Concatenate[T, Instance, P], None]) -> Callable[[T, Instance], None]:
             
             check_signature(func, {name: type})                
@@ -247,6 +247,10 @@ class IO:
 
                 # create instance of output class
                 output = type()
+
+                # update description if provided
+                if the is not None: 
+                    output.description = the
 
                 # copy meta data from ref data if any
                 if ref_data is not None and ref_data.type.meta:
@@ -262,6 +266,60 @@ class IO:
             wrapper._mhubio_ofunc = func._mhubio_ofunc if hasattr(func, '_mhubio_ofunc') else func   
             return wrapper
         return decorator
+
+
+    @staticmethod
+    def OutputDatas(name: str, type: Type[OT], data: Optional[str] = None, in_signature: bool = True, the: Optional[str] = None) -> Callable[[Callable[Concatenate[T, 'Instance', P], None]], Callable[[T, 'Instance'], None]]:
+        # NOTE: to support e.g. generation of value outputs based on value inputs we might extend the signature of the decorator to instead of `datas` link to `values`and only allow one of these at a time.
+        #       However, so far there seems no demand for such a funtionality. Furthermore, such cases can be adressed without the use of any decorator just fine.
+        
+        def decorator(func: Callable[Concatenate[T, Instance, P], None]) -> Callable[[T, Instance], None]:
+            
+            if in_signature: 
+                check_signature(func, {name: OutputDataCollection})
+            
+            def wfunc(self: T, instance: Instance, *args: P.args, **kwargs: P.kwargs) -> None:
+
+                # ref data
+                ref_data = kwargs[data] if data is not None else None
+                assert ref_data is None or isinstance(ref_data, InstanceDataCollection)
+
+                # create one instance per input data or return an empty collection that can be filled inside the module
+                idc = OutputDataCollection()
+                
+                # if ref_data is provided, iterate all referenced input data and create one output data per input data
+                if ref_data is not None: 
+                    for _one_data in ref_data:
+
+                        # create instance of output class
+                        output = type()
+
+                        # update description if provided
+                        if the is not None: 
+                            output.description = the
+
+                        # copy meta data from ref data
+                        output.meta = _one_data.type.meta + (output.meta or Meta())
+
+                        # add output to collection
+                        idc.add(output)
+
+                # call wrapped function
+                kwargs[name] = idc
+                func(self, instance, *args, **kwargs)
+
+                # apply output data to instance
+                instance.outputData += idc
+
+                # verify output data was created at expected path
+                # TODO: we can implement a `has-been-set` check and simply remove (or not-confirm) 
+                #       value outputs during a check for that flag 
+                
+            wfunc._mhubio_ofunc = func._mhubio_ofunc if hasattr(func, '_mhubio_ofunc') else func   
+            return wfunc
+        return decorator
+
+
 
     @staticmethod
     def Output(name: str, path: A[str], dtype: A[str], data: Optional[str] = None, bundle: Optional[A[str]] = None, auto_increment: bool = False, in_signature: bool = True, the: Optional[str] = None) -> Callable[[Callable[Concatenate[T, 'Instance', P], None]], Callable[[T, 'Instance'], None]]:
@@ -347,7 +405,7 @@ class IO:
                     if ref_bundle and not os.path.exists(ref_bundle.abspath):
                         os.makedirs(ref_bundle.abspath)
 
-                    # news idea, use dynamic paths (similar to organizer)
+                    # (new aproach) use dynamic paths (similar to organizer)
                     _one_data_bn = os.path.basename(_one_data.abspath)
                     _one_data_path = _path.replace('[basename]', _one_data_bn)
                     _one_data_path = _one_data_path.replace('[filename]', _one_data_bn.split('.', 1)[0])
@@ -392,3 +450,24 @@ class IO:
             return wrapper
         return decorator 
     
+
+# test
+class IO2:
+
+    C = IO.C
+
+    Instance = IO.Instance
+
+    class In:
+        class File(object):
+            One = IO.Input
+            Many = IO.Inputs
+
+    class Out:
+        class File:
+            One = IO.Output
+            Many = IO.Outputs
+        
+        class Data:
+            One = IO.OutputData
+            Many = IO.OutputDatas

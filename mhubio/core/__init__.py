@@ -13,5 +13,5 @@ from .templates import *
 from .InstanceDataCollection import InstanceDataCollection
 from .OutputDataCollection import OutputDataCollection
 from .Error import *
-from .IO import IO
+from .IO import IO, IO2
 from .RunnerOutput import ValueOutput, ClassOutput, OutputClass

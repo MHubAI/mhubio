@@ -72,6 +72,9 @@ class OutputDataCollection:
     
     def __iter__(self) -> 'OutputDataCollectionIterator':
         return OutputDataCollectionIterator(self)
+    
+    def __add__(self, other: 'OutputDataCollection') -> 'OutputDataCollection':
+        return OutputDataCollection(self._data + other._data)
 
 class OutputDataCollectionIterator:
     def __init__(self, collection: OutputDataCollection) -> None:

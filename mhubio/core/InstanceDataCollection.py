@@ -117,6 +117,9 @@ class InstanceDataCollection:
     def __iter__(self) -> 'InstanceDataCollectionIterator':
         return InstanceDataCollectionIterator(self)
 
+    def __add__(self, other: 'InstanceDataCollection') -> 'InstanceDataCollection':
+        return InstanceDataCollection(self._data + other._data)
+
 class InstanceDataCollectionIterator:
     def __init__(self, collection: InstanceDataCollection) -> None:
         self._collection: InstanceDataCollection = collection
