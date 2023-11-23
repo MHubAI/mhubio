@@ -122,13 +122,12 @@ class ClassOutput(RunnerOutput):
     def __init__(self) -> None:
         super().__init__()
         self.type = RunnerOutputType.ClassPrediction
-
+        self.classes = []
+        self._classID = None
+        
         # reverse classes list, so top most decorator has index 0
         if hasattr(self, 'template_classes') and isinstance(self.template_classes, list):
-            self.template_classes.reverse() 
-
-            self.classes = []
-            for template_class in self.template_classes:
+            for template_class in reversed(self.template_classes):
                 self.classes.append(template_class())
 
     @property

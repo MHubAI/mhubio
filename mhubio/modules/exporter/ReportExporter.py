@@ -161,7 +161,7 @@ class ReportExporter(Module):
 
                     # as query can fetch multiple matching outputs, we need to specify an aggregate similar to files above
                     aggregate = include['aggregate'] if 'aggregate' in include else 'one' #'list'
-                    assert aggregate in ['list', 'count', 'first', 'one', 'sum', 'avg']
+                    assert aggregate in ['list', 'count', 'first', 'one', 'sum', 'avg', 'min', 'max']
 
                     def data2value(data: RunnerOutput) -> Any:
                         
@@ -227,6 +227,12 @@ class ReportExporter(Module):
 
                     elif aggregate == 'avg':
                         value = sum([data2value(data) for data in datas]) / len(datas)
+
+                    elif aggregate == 'min':
+                        value = min([data2value(data) for data in datas])
+
+                    elif aggregate == 'max':
+                        value = max([data2value(data) for data in datas])
                     
                     
                 # break if no value was generated
