@@ -368,8 +368,14 @@ class IO:
     @staticmethod
     def Outputs(name: str, path: A[str], dtype: A[str], data: Optional[str] = None, bundle: Optional[A[str]] = None, wrapper: Optional[A[str]] = None, auto_increment: bool = False, in_signature: bool = True, the: Optional[str] = None) -> Callable[[Callable[Concatenate[T, 'Instance', P], None]], Callable[[T, 'Instance'], None]]:
         
+        # NOTE: that specifying the `auto_incrtement=True` argument on the `@IO.Outputs` decorator would't work as expected in the past if the paths are generated within the Decorator but as the files do not yet exists it's non-effective. 
+        # -----> This is now experimentally solved with the additional  _path_used_in_instance check.
+
         if bundle and wrapper:
             raise IOError("Cannot specify both bundle and wrapper")
+        
+        if auto_increment and not data:
+            raise IOError("If no reference data is specified, instance data creation has to be implemented manually and thus auto_increment has no effect here (but can be used on InstanceData(... ,auto_increment=True) instead).")
 
         def decorator(func: Callable[Concatenate[T, Instance, P], None]) -> Callable[[T, Instance], None]:
             
@@ -380,54 +386,63 @@ class IO:
 
                 # ref data
                 ref_data = kwargs[data] if data is not None else None
-                assert isinstance(ref_data, InstanceDataCollection) 
+                assert ref_data is None or isinstance(ref_data, InstanceDataCollection), \
+                    f"data is {ref_data}"
 
-                # create output data
+                # resolve parameters
                 _dtype = dtype(self) if callable(dtype) else dtype
                 _path = path(self) if callable(path) else path
                 _bundle = bundle(self) if callable(bundle) else bundle if bundle is not None else None
                 _wrapper = wrapper(self) if callable(wrapper) else wrapper if wrapper is not None else None
 
                 idc = InstanceDataCollection()
-                for _one_data in ref_data:
+                if ref_data is not None:
 
-                    # NOTE: bundle and wrapper both create a bundle on each input data that is then passed to the output data constructor, effectively creating a new bundle for each output data. While wrapper creates a bundle based on the input data name, bundle creates a bundle based on the specified name. If all input data share the same bundle or have no bundle set, bundle will create different objects that all point to the same path, hence they effectively share that bundle.
+                    # TODO: outsource in a utility submodule
+                    from mhubio.modules.organizer.DataOrganizer import DataOrganizer
 
-                    # create bundle (if specified)
-                    ref_bundle = _one_data.getDataBundle(_bundle) if _bundle is not None else None
+                    # iterate all referenced input data and create one output data per input data
+                    for _one_data in ref_data:
 
-                    # create wrapping bundle (if specified)
-                    if _wrapper is not None and _wrapper == '*name':
-                        ref_bundle_name = os.path.basename(_one_data.abspath).replace('.', '_')
-                        ref_bundle = _one_data.getDataBundle(ref_bundle_name)
+                        # NOTE: bundle and wrapper both create a bundle on each input data that is then passed to the output data constructor, effectively creating a new bundle for each output data. While wrapper creates a bundle based on the input data name, bundle creates a bundle based on the specified name. If all input data share the same bundle or have no bundle set, bundle will create different objects that all point to the same path, hence they effectively share that bundle.
 
-                    # create bundle folder if required
-                    if ref_bundle and not os.path.exists(ref_bundle.abspath):
-                        os.makedirs(ref_bundle.abspath)
+                        # create bundle (if specified)
+                        ref_bundle = _one_data.getDataBundle(_bundle) if _bundle is not None else None
 
-                    # (new aproach) use dynamic paths (similar to organizer)
-                    _one_data_bn = os.path.basename(_one_data.abspath)
-                    _one_data_path = _path.replace('[basename]', _one_data_bn)
-                    _one_data_path = _one_data_path.replace('[filename]', _one_data_bn.split('.', 1)[0])
-                    _one_data_path = _one_data_path.replace('[filext]', _one_data_bn.split('.', 1)[1] if _one_data_bn.count('.') > 0 else '')
+                        # create wrapping bundle (if specified)
+                        if _wrapper is not None and _wrapper == '*name':
+                            ref_bundle_name = os.path.basename(_one_data.abspath).replace('.', '_')
+                            ref_bundle = _one_data.getDataBundle(ref_bundle_name)
 
-                    # copy meta data from ref data if any
-                    out_data_type = DataType.fromString(_dtype)
-                    out_data_type.meta = _one_data.type.meta + out_data_type.meta
+                        # create bundle folder if required
+                        if ref_bundle and not os.path.exists(ref_bundle.abspath):
+                            os.makedirs(ref_bundle.abspath)
 
-                    # create instance data and add to collection
-                    out_data = InstanceData(path=_one_data_path, type=out_data_type, instance=instance, bundle=ref_bundle, data=_one_data, auto_increment=auto_increment)
-                    idc.add(out_data)
+                        # (new aproach) use dynamic paths pattern
+                        _one_data_path = DataOrganizer.resolveTarget(_path, _one_data)
+                        assert _one_data_path is not None, "resolved path must not be none"
+
+                        # copy meta data from ref data if any
+                        out_data_type = DataType.fromString(_dtype)
+                        out_data_type.meta = _one_data.type.meta + out_data_type.meta
+
+                        # create instance data and add to collection
+                        out_data = InstanceData(path=_one_data_path, type=out_data_type, instance=instance, bundle=ref_bundle, data=_one_data, auto_increment=auto_increment)
+                        idc.add(out_data)
 
                 # call wrapped function
                 kwargs[name] = idc
                 func(self, instance, *args, **kwargs)
 
                 # verify output data was created at expected path
-                for out_data in idc:
-                    if os.path.exists(out_data.abspath):
+                # only verify the very last data of datas with identical abspaths,
+                #  as that one would've overwritten the others
+                confirmed_abspaths: List[str] = []
+                for out_data in reversed(idc.asList()):
+                    if os.path.exists(out_data.abspath) and not out_data.abspath in confirmed_abspaths:
+                        confirmed_abspaths.append(out_data.abspath)
                         out_data.confirm()
-                
+
             wfunc._mhubio_ofunc = func._mhubio_ofunc if hasattr(func, '_mhubio_ofunc') else func   
             return wfunc
         return decorator
@@ -459,7 +474,7 @@ class IO2:
     Instance = IO.Instance
 
     class In:
-        class File(object):
+        class File:
             One = IO.Input
             Many = IO.Inputs
 
