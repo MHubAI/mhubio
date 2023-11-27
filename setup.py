@@ -25,7 +25,7 @@ setuptools.setup(
     include_package_data=True,
     install_requires=[
         "pyyaml",
-        "typing_extensions==4.5.0"
+        "typing_extensions>=4.5.0,<5.0.0"
     ],
     classifiers=[
         "Development Status :: 4 - Beta",
