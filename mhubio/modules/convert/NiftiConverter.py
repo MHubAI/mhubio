@@ -22,7 +22,7 @@ class NiftiConverterEngine(Enum):
     PLASTIMATCH = 'plastimatch'
     DCM2NIIX     = 'dcm2niix'
 
-@IO.ConfigInput('in_datas', 'dicom|nrrd|mha:mod=ct', the="target data that will be converted to nifti")
+@IO.ConfigInput('in_datas', 'dicom|nrrd|mha:mod=ct|mr', the="target data that will be converted to nifti")
 @IO.Config('engine', NiftiConverterEngine, 'plastimatch', factory=NiftiConverterEngine, the='engine to use for conversion')
 @IO.Config('allow_multi_input', bool, False, the='allow multiple input files')
 #@IO.Config('targets', List[DataType], ['dicom:mod=ct', 'nrrd:mod=ct'], factory=IO.F.list(DataType.fromString), the='target data types to convert to nifti')

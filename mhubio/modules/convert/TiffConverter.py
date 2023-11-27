@@ -16,14 +16,14 @@ from pathlib import Path
 # conversion dependencies
 from panimg.image_builders.tiff import image_builder_tiff # type: ignore
 
-@IO.ConfigInput('in_datas', 'dicom:mod=sm', the="target data that will be converted to mha")
+@IO.ConfigInput('in_datas', 'dicom:mod=sm', the="target data that will be converted to tiff")
 @IO.Config('allow_multi_input', bool, False, the='allow multiple input files')
 @IO.Config('bundle_name', str, 'tiff', the="bundle name converted data will be added to")
 @IO.Config('converted_file_name', str, '[filename].tiff', the='name of the converted file')
 @IO.Config('overwrite_existing_file', bool, False, the='overwrite existing file if it exists')
 class TiffConverter(Module):
     """
-    Conversion module that converts DICOM, NRRD and NIFTI data into MHA.
+    Conversion module that converts DICOM data into TIFF.
     """
 
     allow_multi_input: bool
