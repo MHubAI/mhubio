@@ -25,7 +25,7 @@ nnunet_task_name_regex = r"Task[0-9]{3}_[a-zA-Z0-9_]+"
 @IO.Config('nnunet_model', str, None, the='nnunet model name (2d, 3d_lowres, 3d_fullres, 3d_cascade_fullres)')
 #@IO.Config('input_data_type', DataType, 'nifti:mod=ct', factory=DataType.fromString, the='input data type')
 @IO.Config('folds', int, None, the='number of folds to run nnunet on')
-@IO.Config('use_tta', bool, False, the='flag to enable test time augmentation')
+@IO.Config('use_tta', bool, True, the='flag to enable test time augmentation')
 @IO.Config('export_prob_maps', bool, False, the='flag to export probability maps')
 @IO.Config('prob_map_segments', list, [], the='segment labels for probability maps')
 @IO.Config('roi', str, None, the='roi or comma separated list of roi the nnunet segments')
@@ -180,7 +180,7 @@ class NNUnetRunner(Module):
         if self.folds is not None:
             bash_command += ["--folds", str(self.folds)]
 
-        if self.use_tta:
+        if not self.use_tta:
             bash_command += ["--disable_tta"]
         
         if self.export_prob_maps:
