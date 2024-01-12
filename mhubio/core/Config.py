@@ -24,6 +24,8 @@ def dict_merge(source: dict, destination: dict) -> dict:
 
 
 def config_argument_parser(args: List[str], allow_json_type_parsing: bool = True) -> dict:
+    # NOTE: to pass e.g. a json list, write "--config:key=[\"value1\", \"value2\"]" (place the whole argument in quotes)
+    
     config: dict = {}
     for arg in args:
         if arg.startswith('--config:'):
@@ -89,13 +91,13 @@ class Config:
         if '--debug' in sys.argv:
             self.debug = True
 
-        # cli overwrite config file
-        if '--config' in sys.argv:
-            ci = sys.argv.index('--config')
-            if ci < len(sys.argv) - 1:
-                if os.path.isfile(sys.argv[ci + 1]):
-                    config_file = sys.argv[ci + 1]
-                    print(f"Config file overwritten by cli argument: {config_file}")
+        # cli overwrite config file -> handled by run.py exclusively
+        # if '--config' in sys.argv:
+        #     ci = sys.argv.index('--config')
+        #     if ci < len(sys.argv) - 1:
+        #         if os.path.isfile(sys.argv[ci + 1]):
+        #             config_file = sys.argv[ci + 1]
+        #             print(f"Config file overwritten by cli argument: {config_file}")
 
         # TODO: define minimal base config and auto-load. 
         # How do we 'define' mandatory fields? assert them?

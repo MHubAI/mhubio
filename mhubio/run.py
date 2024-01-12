@@ -258,7 +258,7 @@ def get_config_path(configurations: List[Dict[str, str]]) -> Optional[str]:
 
         # workflow 'config' and 'default' are used synonymously.
         # TODO: we could check if there are two workflows with either names present but we better forbid using 'config' as a name in the future and encourage the use of 'default' instead.
-        if args.workflow == 'default' and 'config' in workflows:
+        if args.workflow == 'default' and 'default' not in workflows and 'config' in workflows:
             workflow = 'config'
 
         # ensure that if a workflow is specified, it is present in the container
@@ -289,6 +289,11 @@ def run(config_file: Optional[str] = None):
 
     # instantiate config
     config = Config(config_file=config_file)
+
+    # print config
+    if args.debug:
+        print(f'{f.cyan+f.fbold} Config:{f.cend}')
+        print(yaml.dump(config._config, indent=2))
 
     # ensure the configuration is valid for stand-alone execution
     if not 'execute' in config._config:

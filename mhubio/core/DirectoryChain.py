@@ -38,6 +38,10 @@ class DirectoryChain:
         self.base: Optional[str] = base
         self.parent: Optional[DirectoryChain] = parent
 
+    @property
+    def chain(self) -> list:
+        return [self] + self.parent.chain if self.parent is not None else [self]
+
     def setBase(self, base: Optional[str]) -> None:
         self.base = base
 
@@ -83,14 +87,25 @@ class DirectoryChain:
     
     @classmethod
     def fromDict(cls, d: dict) -> 'DirectoryChain':
-        return cls(d["path"], d["base"], cls.fromDict(d["parent"]) if d["parent"] is not None else None)
+        return cls(
+            d["path"], 
+            d["base"], 
+            cls.fromDict(d["parent"]) if d["parent"] is not None else None
+        )
 
     @property
     def abspath(self) -> str:
+        # NOTE: whenever self.path is absolue (starting with /) it will override any base and any parent component (-> entrypoint)
+
+        # if a base is set, return the path from the base (ignoring any potential parents)
         if self.base is not None:
             return os.path.join(self.base, self.path)
+        
+        # if no base but a parent exists, return the path relative to the parent 
         elif self.parent is not None:
             return os.path.join(self.parent.abspath, self.path)
+        
+        # if dc is not ignored, no base and no parent is set, just return the path component
         else:
             return self.path
 

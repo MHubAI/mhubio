@@ -47,7 +47,7 @@ class Instance(DirectoryChainInterface):
     def getDataMetaKeys(self) -> List[str]:
         return list(set(sum([list(d.type.meta.keys()) for d in self.data], [])))
 
-    def printDataOverview(self, idc: Optional['InstanceDataCollection'] = None, meta: bool = False, label: str = "") -> None:
+    def printDataOverview(self, idc: Optional['InstanceDataCollection'] = None, meta: bool = False, label: str = "", include_dc: bool = False) -> None:
 
         # you may specify data explicitly (e.g. the result of a filter), otherwise we use the instance's data
         if idc is None:
@@ -69,13 +69,28 @@ class Instance(DirectoryChainInterface):
         print(f". Instance {fitalics}{label}{fnormal} [{self.abspath}]")
         for k, v in self.attr.items():
             print(f"├── {cyan}{k}: {v}{cend}")
+        
         for data in idc:
             print(f"├── {chead}{str(data.type.ftype)}{cend} [{data.abspath}]", u'\u2713' if data.confirmed else u'\u2717')
+            
+            # print dc
+            if include_dc:
+                dclen1 = max(len(str(dc.base)) if dc.base is not None else 0 for dc in data.dc.chain)
+                dclen2 = max(len(str(dc.path)) for dc in data.dc.chain)
+                for dc in data.dc.chain:
+                    dcattr = ''.join([
+                        'E' if dc.isEntrypoint else '-',
+                        'B' if dc.base is not None else '-',
+                        'P' if dc.parent is not None else '-'
+                    ])
+
+                    print(f"│   ├── {cgray}[{dcattr}] {dc.base if dc.base is not None else '-':<{dclen1}} | {dc.path:<{dclen2}} |> {dc.abspath} {cend}")
 
             # print meta    
             if meta:
                 for i, (k, v) in enumerate(data.type.meta.items()):
                     print(f"│   {'├' if i < len(data.type.meta) - 1 else '└'}── {cyan}{k}: {v}{cend}")
+
 
         for data in self.outputData:
             print(f"├── {chead}{str(data.name)}{cend} [{data.label}]")

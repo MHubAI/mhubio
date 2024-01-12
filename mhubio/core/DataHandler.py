@@ -12,7 +12,7 @@ Email:  leonard.nuernberg@maastrichtuniversity.nl
 from typing import List, Dict, Optional
 from .DirectoryChain import DirectoryChainInterface, DirectoryChain
 from .DataType import DataType
-import uuid, os
+import uuid, os, sys
 
 class DataHandler(DirectoryChainInterface):
     # base:             str
@@ -167,7 +167,8 @@ class DataHandler(DirectoryChainInterface):
             elif level == "meta":
                 instance.printDataMetaOverview()
             elif level == "data+meta":
-                instance.printDataOverview(meta=True)
+                include_dc = '--debug-dc' in sys.argv
+                instance.printDataOverview(meta=True, include_dc=include_dc)
 
 
 # avoiding circular imports

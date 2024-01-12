@@ -179,8 +179,9 @@ class FileStructureImporter(Module):
             assert ref in instances, f"Error: instance {ref} not found."
             instance = instances[ref]
 
-            # create bundle
-            bundle = instance.getDataBundle(path)
+            # create bundle 
+            # NOTE: that we use relative folder name instead of absolute path to not create a dc entrypoint
+            bundle = instance.getDataBundle(os.path.basename(path))
             bundles[bundle_id] = bundle
 
         # import data
