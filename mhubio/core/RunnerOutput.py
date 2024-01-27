@@ -1,10 +1,17 @@
 from enum import Enum
-from typing import Type, Any, List, Optional, Union, Dict, Callable
+from typing import Type, Any, List, Optional, Union, Dict, Callable, TypeVar
 from .Meta import Meta
+OT = TypeVar('OT', bound='RunnerOutput')
+
+# +++++++++++++++++++++++++++++++++++++++++++++++++++++
+# ++ Generic / Abstract Output Base Class
 
 class RunnerOutputType(Enum):
     ValuePrediction = 'ValuePrediction'
     ClassPrediction = 'ClassPrediction'
+    GroupPrediction = 'GroupPrediction'
+    DictPrediction = 'DictPrediction'
+    ListPrediction = 'ListPrediction'
 
 class RunnerOutput(): # Outcome?
 
@@ -59,6 +66,9 @@ class RunnerOutput(): # Outcome?
             return cls
         return decorator
     
+# +++++++++++++++++++++++++++++++++++++++++++++++++++++
+# ++ Value Output
+
 class ValueOutput(RunnerOutput):
 
     dtype: Type
@@ -88,6 +98,9 @@ class ValueOutput(RunnerOutput):
     
     def __str__(self):
         return super().__str__() + f"({self.value})"
+
+# +++++++++++++++++++++++++++++++++++++++++++++++++++++
+# ++ Class Output
 
 class OutputClass():
     classID: Union[int, str]
@@ -188,3 +201,190 @@ class ClassOutput(RunnerOutput):
             cls.template_classes.append(class_factory)
             return cls
         return decorator
+
+# +++++++++++++++++++++++++++++++++++++++++++++++++++++
+# ++ Group Output 
+
+class GroupOutput(RunnerOutput):
+
+    template_items: Dict[str, Callable[[], RunnerOutput]]
+    items: Dict[str, RunnerOutput]
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.type = RunnerOutputType.GroupPrediction
+        self.items = {}
+        
+        # reverse classes list, so top most decorator has index 0
+        if hasattr(self, 'template_items') and isinstance(self.template_items, dict):
+            for itemID in reversed(self.template_items.keys()):
+                item_factory = self.template_items[itemID]
+                self.items[itemID] = item_factory()
+
+    # @property
+    # def value(self) -> Optional[Union[str, int]]:
+    #     return self._classID
+    
+    # @value.setter
+    # def value(self, classID: Optional[Union[str, int]]):
+    #     assert classID is None or classID in self, f"Class with ID {classID} not found."
+    #     self._classID = classID
+
+
+    # access items by their itemID
+    def __getitem__(self, itemID: str) -> RunnerOutput:
+        if not itemID in self.items:
+            raise KeyError(f"Class with ID {itemID} not found.")
+
+        return self.items[itemID]
+
+    def get_item(self, itemID: str, item_type: Type[OT]) -> OT:
+        item = self[itemID]
+        if not isinstance(item, item_type):
+            raise TypeError(f"Item with ID {itemID} is not of type ValueOutput.")
+        return item
+
+    def get_value_item(self, itemID: str) -> ValueOutput:
+        return self.get_item(itemID, ValueOutput)
+    
+    def get_class_item(self, itemID: str) -> ClassOutput:
+        return self.get_item(itemID, ClassOutput)
+
+    # in operator to check if group has an item with itemID
+    def __contains__(self, itemID: str) -> bool:
+        return itemID in self.items
+
+    def __str__(self):
+        return super().__str__() + f"<{'|'.join(str(item) for item in self.items)}>"
+
+    # static decorator to define a output class
+    @staticmethod
+    def Item(itemID: str, output_class: Type[OT]):
+        assert not '.' in itemID, f"ItemID {itemID} cannot contain '.'."
+        def decorator(cls):
+
+            def item_factory():
+                return output_class()
+
+            if not hasattr(cls, 'template_items'):
+                cls.template_items = {}
+
+            if not itemID in cls.template_items:
+                cls.template_items[itemID] = item_factory
+            
+            return cls
+        return decorator
+
+
+# +++++++++++++++++++++++++++++++++++++++++++++++++++++
+# ++ Experimental 
+
+class DictOutputItem():
+    key: str
+    dtype: Type
+    description: str
+    _value: Optional[Any]
+
+    def __init__(self, key: str, dtype: Type, description: str):
+        self.key = key
+        self.dtype = dtype
+        self.description = description
+
+    @property
+    def value(self) -> Any:
+        assert self._value is None or isinstance(self._value, self.dtype), f"Value {self._value} is not of type {self.dtype}."
+        return self._value
+    
+    @value.setter
+    def value(self, value: Optional[Any]):
+        assert value is None or isinstance(value, self.dtype), f"Value {value} is not of type {self.dtype}."
+        self._value = value
+
+    def __str__(self):
+        return f"[D:{self.key}:{self.dtype}:{self.description}]"
+
+class DictOutput(RunnerOutput):
+    items: Dict[str, DictOutputItem]
+
+    def __init__(self, value: Optional[Dict[str, Any]] = None):
+        super().__init__()
+        self.type = RunnerOutputType.DictPrediction
+        self.value = value
+
+    @property
+    def value(self) -> Optional[Dict[str, Any]]:
+        # NOTE: omitting items with value None (we might need to set this behavior, however, role of .value is unclear for the dict output anyways...)
+        return {k: v.value for k, v in self.items.items() if v.value is not None}
+    
+    @value.setter
+    def value(self, value: Optional[Dict[str, Any]]):
+        # reset all items if value is None
+        if value is None:
+            for item in self.items.values():
+                item.value = None
+            return
+        
+        # update existing items from dict if value is not None
+        assert isinstance(value, dict), f"Value {value} is not a dict nor None."
+        for k, v in value.items():
+            assert k in self.items, f"Key {k} not found in items."
+            assert isinstance(v, self.items[k].dtype), f"Value {v} is not of type {self.items[k].dtype}."
+            self.items[k].value = v
+
+    def set(self, key: str, value: Any):
+        assert key in self.items, f"Key {key} not found in items."
+        assert isinstance(value, self.items[key].dtype), f"Value {value} is not of type {self.items[key].dtype}."
+        self.items[key].value = value
+
+    # static decorator function that assigns type
+    @staticmethod
+    def Item(key: str, dtype: Type, the: str):
+        def decorator(cls):
+            if not hasattr(cls, 'items'):
+                cls.items = {}
+            cls.items[key] = DictOutputItem(key, dtype, the)
+            return cls
+        return decorator
+    
+    def __str__(self):
+        return super().__str__() + f"({self.value})"
+
+class ListOutput(RunnerOutput):
+
+    dtype: Type
+    _value: Optional[List[Any]]
+
+    def __init__(self):
+        super().__init__()
+        self.type = RunnerOutputType.ListPrediction
+        self._value = None
+
+    @property
+    def value(self) -> Optional[Any]:
+        assert self._value is None or (isinstance(self._value, list) and all(isinstance(v, self.dtype) for v in self._value)), \
+            f"Value {self._value} is not a list of type {self.dtype}."
+        return self._value
+    
+    @value.setter
+    def value(self, value: Optional[List[Any]]):
+        assert value is None or (isinstance(value, list) and all(isinstance(v, self.dtype) for v in value)), \
+            f"Value {value} is not a list of type {self.dtype}."
+        self._value = value
+
+    def add(self, item: Any):
+        assert isinstance(item, self.dtype), f"Item {item} is not of type {self.dtype}."
+        if self._value is None:
+            self._value = []
+        self._value.append(item)
+
+    # static decorator function that assigns type
+    @staticmethod
+    def Type(dtype: Type):
+        def decorator(cls):
+            cls.dtype = dtype
+            return cls
+        return decorator
+    
+
+    def __str__(self):
+        return super().__str__() + f"({[str(x) for x in self.value or []]})"

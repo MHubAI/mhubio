@@ -14,7 +14,7 @@ from typing import List, Dict, Any
 from mhubio.core import Module, Instance, InstanceData, DataType, Meta, IO, DataTypeQuery
 from mhubio.core.Logger import MLogLevel
 from mhubio.modules.organizer.DataOrganizer import DataOrganizer
-from mhubio.core.RunnerOutput import RunnerOutput, ClassOutput, ValueOutput
+from mhubio.core.RunnerOutput import RunnerOutput, ClassOutput, ValueOutput, GroupOutput
 import json, csv, os
 
 class ReportFormat(str, Enum):
@@ -165,8 +165,17 @@ class ReportExporter(Module):
 
                     def data2value(data: RunnerOutput) -> Any:
                         
+                        # if the data is a group output, we need to fetch the item
+                        if isinstance(data, GroupOutput) and 'item' in include:
+                            group_path = include['item'].split('.')
+                            group_data = data
+                            for p in group_path:
+                                assert isinstance(group_data, GroupOutput), "Item path must only contain group outputs except for the leaf item."
+                                group_data = group_data[p]
+                            data = group_data
+
                         # output data object must be an instacne of value output or class output 
-                        assert isinstance(data, ValueOutput) or isinstance(data, ClassOutput)
+                        assert isinstance(data, ValueOutput) or isinstance(data, ClassOutput) or isinstance(data, GroupOutput)
 
                         # extract description, value or class probability
                         if include['value'] == 'description' and 'class' not in include:

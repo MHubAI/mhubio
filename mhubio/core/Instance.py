@@ -15,7 +15,7 @@ from typing import List, Dict, Optional, Any
 from .DataType import DataType
 from .FileType import FileType
 from .DirectoryChain import DirectoryChainInterface
-from .RunnerOutput import RunnerOutput, RunnerOutputType, ValueOutput, ClassOutput
+from .RunnerOutput import RunnerOutput, RunnerOutputType, ValueOutput, ClassOutput, GroupOutput
 
 class Instance(DirectoryChainInterface): 
     # handler:      DataHandler
@@ -109,6 +109,17 @@ class Instance(DirectoryChainInterface):
                     ccolor = cyellow if data.predictedClass == c else cgray
                     cidstr = str(c.classID) + ' ' + (u'\u2713' if data.predictedClass == c else u'\u2717')
                     print(f"{ccolor}{cidstr:<{cidstrlen}}{cend} [{c.label}]{' '*(clabstrlen-len(c.label))} ({c.probability}) {fitalics+cgray}{c.description}{fnormal+cend}")
+
+            elif data.type == RunnerOutputType.GroupPrediction:
+                assert isinstance(data, GroupOutput)
+                for i, (itemID, item) in enumerate(data.items.items()):
+                    print(f"│   {'├' if i < len(data.items) - 1 else '└'}── ", end="")
+
+                    if isinstance(item, ValueOutput) or isinstance(item, ClassOutput):
+                        print(f"{cyellow}{itemID}: {item.label}{cend} ({item.value})")
+                    elif isinstance(item, GroupOutput):
+                        # TODO: to support nested groups we need to implement a recursive print function
+                        print(f"{cyellow}{itemID}: {item.label} (-mhub.groupoutput-){cend}")
 
             # print meta    
             if meta and data.meta is not None:
