@@ -24,6 +24,7 @@ class FileType(Enum):
     JSON        = "json"
     MHA         = "mha"
     TIFF        = "tiff"
+    PNG         = "png"
 
     def __str__(self) -> str:
         return self.name

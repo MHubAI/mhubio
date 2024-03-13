@@ -58,7 +58,7 @@ class IO:
 
     # dy
     @staticmethod
-    def C(key: str, type: Optional[Type[V]] = Any) -> Callable[[Module], V]:
+    def C(key: str, type: Optional[Type[V]] = None) -> Callable[[Module], V]:
         def c(self: Module) -> V:
             return getattr(self, key)
         return c

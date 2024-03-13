@@ -18,6 +18,25 @@ class Meta:
     def __init__(self, **kwargs: str) -> None:
         self.mdict: Dict[str, str] = kwargs if kwargs else {}
 
+    @staticmethod
+    def fromString(s: str) -> 'Meta':
+        """
+        Convert data in form $meta_key1=$meta_value1:$meta_key2=$meta_value2 to Meta instance.
+        Example: mod=seg -> Meta(mod, seg)
+        """
+
+        # assemple meta dictionary
+        meta_dict: Dict[str, str] = {}
+        for kvp in s.split(":"):
+            if '=' in kvp:
+                key, value = kvp.split("=")
+                meta_dict[key] = value
+            elif len(kvp):
+                meta_dict[kvp] = ""
+
+        # convert to meta instance
+        return Meta() + meta_dict
+
     def ext(self, meta: Union[Dict[str, str], List['Meta'], 'Meta']) -> 'Meta':
         if isinstance(meta, dict):
             self.mdict = {**self.mdict, **meta}

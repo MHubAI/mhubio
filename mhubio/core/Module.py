@@ -25,6 +25,7 @@ class Module:
         self.label: str = self.__class__.__name__
         self.config: Config = config
         self.local_config: dict = local_config if local_config is not None else {}
+        self.log = ModuleLogger(module=self)
 
     @property 
     def c(self) -> Any:
@@ -44,18 +45,7 @@ class Module:
         """
         Legacy method for logging. Resolves to log(file=True).
         """
-        
-        self.log(*args, level=MLogLevel.NOTICE)
-
-    def log(self, *args, level: Union[str, MLogLevel] = MLogLevel.NOTICE) -> None:
-        """ Log messages for the module.
-        Messages are logged to a log file and bound to an instance if possible.
-        """
-
-        if self.config.logger is not None:
-            self.config.logger.log(*args, level=level)
-        else:
-            print(*args)
+        self.log.notice(*args)
 
     def subprocess(self, args: List[str], **kwargs) -> None:
 
@@ -103,3 +93,58 @@ class Sequence(Module):
     def task(self) -> None:
         for module in self.modules:
             module(self.config).execute()
+            
+            
+class ModuleLogger():
+    """
+    Convenience class to log messages from a module.
+    """
+
+    def __init__(self, module: Module) -> None:
+        self.module = module
+        self.logger = module.config.logger
+
+    @property 
+    def active(self) -> bool:
+        return self.logger is not None
+
+    def log(self, *args, level: Union[str, MLogLevel] = MLogLevel.NOTICE) -> None:
+        """Passes a log message down to the MLog logger instance.
+
+        Args:
+            level (Union[str, MLogLevel], optional): The type of the log message. Defaults to MLogLevel.NOTICE.
+        """
+        if self.logger is not None:
+            self.logger.log(*args, level=level)
+        else:
+            print(*args)
+        
+    def __call__(self, *args, level: Union[str, MLogLevel] = MLogLevel.NOTICE) -> Any:
+        """Shortcut for self.log() method.
+
+        Args:
+            level (Union[str, MLogLevel], optional): The type of the log message. Defaults to MLogLevel.NOTICE.
+        """
+        self.log(*args, level=level)
+         
+    def notice(self, *args) -> None:
+        self.log(*args, level=MLogLevel.NOTICE)
+        
+    def warning(self, *args) -> None:
+        self.log(*args, level=MLogLevel.WARNING)
+        
+    def deprecated(self, *args) -> None:
+        self.log(*args, level=MLogLevel.DEPRECATED)
+        
+    def error(self, *args) -> None:
+        self.log(*args, level=MLogLevel.ERROR)
+        
+    def debug(self, *args) -> None:
+        self.log(*args, level=MLogLevel.DEBUG)
+        
+    def external(self, *args) -> None:
+        self.log(*args, level=MLogLevel.EXTERNAL)
+        
+    def captured(self, *args) -> None:
+        self.log(*args, level=MLogLevel.CAPTURED)
+        
