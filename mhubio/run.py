@@ -47,6 +47,7 @@ import_paths = {
     'NrrdImporter': 'mhubio.modules.importer.NrrdImporter',
     'FileStructureImporter': 'mhubio.modules.importer.FileStructureImporter',
     'FileListImporter': 'mhubio.modules.importer.FileListImporter',
+    'FileImporter': 'mhubio.modules.importer.FileImporter',
 
     'AttributeFilter': 'mhubio.modules.filter.AttributeFilter',
     'FileFilter': 'mhubio.modules.filter.FileFilter',
@@ -58,6 +59,7 @@ import_paths = {
     'MhaConverter': 'mhubio.modules.convert.MhaConverter',
     'TiffConverter': 'mhubio.modules.convert.TiffConverter',
     'RTStructConverter': 'mhubio.modules.convert.RTStructConverter',
+    'PngConverter': 'mhubio.modules.convert.PngConverter',
 
     'DataOrganizer': 'mhubio.modules.organizer.DataOrganizer',
 
