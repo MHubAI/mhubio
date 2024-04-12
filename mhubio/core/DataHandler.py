@@ -168,7 +168,8 @@ class DataHandler(DirectoryChainInterface):
                 instance.printDataMetaOverview()
             elif level == "data+meta":
                 include_dc = '--debug-dc' in sys.argv
-                instance.printDataOverview(meta=True, include_dc=include_dc)
+                imclude_img_analysis = '--debug-img' in sys.argv
+                instance.printDataOverview(meta=True, include_dc=include_dc, include_img_analysis=imclude_img_analysis)
 
 
 # avoiding circular imports

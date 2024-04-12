@@ -47,7 +47,7 @@ class Instance(DirectoryChainInterface):
     def getDataMetaKeys(self) -> List[str]:
         return list(set(sum([list(d.type.meta.keys()) for d in self.data], [])))
 
-    def printDataOverview(self, idc: Optional['InstanceDataCollection'] = None, meta: bool = False, label: str = "", include_dc: bool = False) -> None:
+    def printDataOverview(self, idc: Optional['InstanceDataCollection'] = None, meta: bool = False, label: str = "", include_dc: bool = False, include_img_analysis: bool = False) -> None:
 
         # you may specify data explicitly (e.g. the result of a filter), otherwise we use the instance's data
         if idc is None:
@@ -91,6 +91,21 @@ class Instance(DirectoryChainInterface):
                 for i, (k, v) in enumerate(data.type.meta.items()):
                     print(f"│   {'├' if i < len(data.type.meta) - 1 else '└'}── {cyan}{k}: {v}{cend}")
 
+
+            # print image analysis via sitk
+            if include_img_analysis:
+                if data.type.ftype in [FileType.NIFTI, FileType.NRRD, FileType.MHA, FileType.DICOM]:
+                    import SimpleITK as sitk
+                    
+                    if data.type.ftype == FileType.DICOM:
+                        reader = sitk.ImageSeriesReader()
+                        dicom_names = reader.GetGDCMSeriesFileNames(data.abspath)
+                        reader.SetFileNames(dicom_names)
+                        img_itk = reader.Execute()
+                    else:
+                        img_itk = sitk.ReadImage(data.abspath)
+                    img_np = sitk.GetArrayFromImage(img_itk)
+                    print(f"│   └── {cgray}Image: {img_itk.GetSize()} {img_itk.GetSpacing()} {img_itk.GetOrigin()} [{img_np.min()},{img_np.max()}]{cend}")
 
         for data in self.outputData:
             print(f"├── {chead}{str(data.name)}{cend} [{data.label}]")
