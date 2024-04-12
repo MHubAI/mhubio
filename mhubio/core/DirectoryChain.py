@@ -60,10 +60,11 @@ class DirectoryChain:
         else:
             self.setBase("")
 
-    def makedirs(self, exist_ok: bool = True) -> None:
+    def makedirs(self, exist_ok: bool = True, is_file: Optional[bool] = None) -> None:
 
         # check if abspath resolves to a file or directory
-        is_file = re.match(r'^.*[^\/]+\.[^\.]+$', self.abspath) is not None
+        if is_file is None:
+            is_file = re.match(r'^.*[^\/]+\.[^\.]+$', self.abspath) is not None
 
         # sanity checks
         assert exist_ok or not os.path.exists(self.abspath) # path must not exist
