@@ -185,6 +185,7 @@ class ReportExporter(Module):
                             value = data.label
 
                         elif include['value'] == 'value' and 'class' not in include:
+                            assert not isinstance(data, GroupOutput), "Value attribute only available for value and class outputs."
                             value = data.value
 
                         elif include['value'] == 'type':
