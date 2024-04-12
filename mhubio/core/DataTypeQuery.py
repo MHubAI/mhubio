@@ -194,9 +194,13 @@ class DataTypeQuery:
                 #'.classes.probability': [c.probability for c in ref_type.classes],
                 #'.classes.description': [c.description for c in ref_type.classes],
                 ref_meta += {
-                    '.value': ref_type.value
+                    '.value': str(ref_type.value)
                 }
-
+                
+        # add pseudo meta keys for list lengths
+        for k in ref_meta.keys():
+            ref_meta += {k + '.length': str(len(ref_meta[k].split(',')))}
+            
         # meta matching
         return all(cls.evaluateMeta(md, ref_meta) for md in metas_def)
         
