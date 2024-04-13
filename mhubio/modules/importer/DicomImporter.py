@@ -10,11 +10,11 @@ Email:  leonard.nuernberg@maastrichtuniversity.nl
 """
 
 import os
-import subprocess
 import shutil
 
 from enum import Enum
-from mhubio.core import Config, Module, Instance, InstanceData, DataType, Meta, FileType, CT, DirectoryChain, IO
+from typing import List
+from mhubio.core import Module, Instance, InstanceData, DataType, Meta, FileType, DirectoryChain, IO, SEG
 import pydicom
 
 class InputDirStructure(Enum):
@@ -28,6 +28,7 @@ class InputDirStructure(Enum):
 @IO.Config('source_dir', str, 'input_data', the="source input directory containing the (unsorted) dicom data")
 @IO.Config('import_dir', str, 'sorted_data', the="output directory where the imported (sorted / organized) dicom data will be placed")
 @IO.Config('sort_data', bool, True, the="flag to turn data sorting using dicomsort off if input data is sorted already")
+@IO.Config('merge', bool, True, the="flag to merge related dicom data into one instance")
 @IO.Config('meta', dict, {'mod': '%Modality'}, the="meta data used for every imported instance")
 class DicomImporter(Module):
     """
@@ -42,6 +43,7 @@ class DicomImporter(Module):
     import_dir: str
     sort_data: bool
     structure: str = "%SeriesInstanceUID/dicom/%SOPInstanceUID.dcm"
+    merge: bool 
     meta: dict
 
     def sort(self, input_dir, sorted_dir, schema) -> None:   
@@ -66,7 +68,7 @@ class DicomImporter(Module):
             os.path.join(sorted_dir, schema)
         ]
 
-        # TODO: remove
+        # run command
         self.v(">> run: ", " ".join(bash_command))
         self.subprocess(bash_command, text=True)
 
@@ -91,6 +93,7 @@ class DicomImporter(Module):
                     meta_update[k] = getattr(ds, dicom_field)
                 else:
                     self.v(f">> dicom field not found: {dicom_field}")
+                    meta_update[k] = "" # empty string as placeholder
 
         # update meta of the dicom data
         dicom_data.type.meta += meta_update
@@ -161,7 +164,7 @@ class DicomImporter(Module):
 
         # create dicom data
         dicom_data_meta = self.meta.copy()
-        dicom_data_type = DataType(FileType.DICOM, CT)
+        dicom_data_type = DataType(FileType.DICOM, dicom_data_meta)
         dicom_data = InstanceData('dicom', dicom_data_type, instance)
 
         # copy the dicom data
@@ -177,8 +180,6 @@ class DicomImporter(Module):
         if os.path.isdir(dicom_data.abspath):
             dicom_data.confirm()
 
-        # add instance to data handler
-        # self.config.data.instances = [instance]
 
     def importMultipleInstances(self, input_dir: str, sorted_dir: str) -> None:
         
@@ -212,6 +213,99 @@ class DicomImporter(Module):
             if os.path.isdir(dicom_data.abspath):
                 dicom_data.confirm()
 
+    def combine(self) -> None:
+        
+        # get all instances
+        instances = self.config.data.instances
+        
+        # find all related instances
+        #  filter for all instances, that contain at least one file of type dicom and a modality set to segmentation
+        # NOTE: should we consider removing the DICOMSEG filetype and use DICOM+SEG as the new standard or is DICOM always a folder based
+        #       format and SEG/RTSTRUCT are filebased? For now, we keep it defined as the latter (which is also consistent with how we handle other file formats).
+        related_instances = list(filter(lambda i: any(d.type.ftype == FileType.DICOM and (d.type.meta <= SEG or d.type.meta <= Meta(mod="RTSTRUCT")) for d in i.data), instances))
+                    
+        # print related instances
+        self.v()
+        self.v("> related instances: ", len(related_instances))
+        for i in related_instances:
+            self.v("> -", i.abspath)
+            
+        # read the dicom source image SID for each related instance
+        #rinst = related_instances[0]
+        for rinst in related_instances:
+        
+            # print rinst abspath
+            self.log.debug()
+            self.log.debug("> rinst abspath: ", rinst.abspath)
+
+            # get dicom data 
+            #  we expect every instance to contain exactly one file data of mhub type DICOM.
+            #  we furthermore expect each file to be a dicomseg or rtstruct file and thus be exactly one file
+            #  NOTE: the mhub DICOM filetype always points to a folder. We hace DICOMSEG and RTSTRUCT file types that point to the file itself.
+            #        All files are imported with DICOM file type and their Modality header is by default read into the mod Meta attribute.
+            #        We then later check if the modality is SEG or RTSTRUCT and change the file type accordingly.
+            assert len(rinst.data) == 1
+            rdicom = rinst.data.get(0)
+            self.log.debug("> rdicom: ", rdicom.abspath)
+            rdicom_files = os.listdir(rdicom.abspath)
+            
+            assert len(rdicom_files) == 1
+            rdicom_file = rdicom_files[0]
+            self.log.debug("> rdicom_file: ", rdicom_file)
+            
+            # read dicom headers
+            ds = pydicom.read_file(os.path.join(rdicom.abspath, rdicom_file))
+            
+            # lookup source dicom sid from segmentation file dicom headers
+            series_uid = None
+            if rdicom.type.meta <= Meta(mod="SEG"):
+                
+                # (0008,1115) ReferencedSeriesSequence -> (fffe,e000) Item -> (0020,000e) SeriesInstanceUID
+                ref_series = ds.ReferencedSeriesSequence[0]
+                series_uid = ref_series.SeriesInstanceUID
+                self.log.debug("> series_uid: ", series_uid)
+            
+            elif rdicom.type.meta <= Meta(mod="RTSTRUCT"):
+                
+                # (3006,0010) ReferencedFrameOfReferenceSequence -> (fffe,e000) Item -> (3606,0012) RTReferencedStudySequence -> (fffe,e000) Item -> (3606,0014) RTReferencedSeriesSequence -> (fffe,e000) Item -> (0020,000e) SeriesInstanceUID
+                ref_series = ds.ReferencedFrameOfReferenceSequence[0].RTReferencedStudySequence[0].RTReferencedSeriesSequence[0]
+                series_uid = ref_series.SeriesInstanceUID
+                self.log.debug("> series_uid: ", series_uid)
+            
+            # stop if no series uid was found
+            if series_uid is None:
+                self.log.debug("> no series uid found for instance: ", rinst.abspath)
+                continue
+            
+            # find instance with the same series UID
+            parent_instances: List[Instance] = list(filter(lambda i: i.attr['sid'] == series_uid, instances))
+            self.log.debug("> parent_instance: ", parent_instances)
+            
+            assert len(parent_instances) == 1
+            parent_instance: Instance = parent_instances[0]
+            self.log.debug("> parent_instance: ", parent_instance.abspath)
+            
+            # create a new datatype pointing to the file
+            if rdicom.type.meta <= Meta(mod="SEG"):
+                rinst_data = InstanceData(
+                    os.path.join(rdicom.abspath, rdicom_file), 
+                    DataType(FileType.DICOMSEG, rdicom.type.meta))
+                
+            elif rdicom.type.meta <= Meta(mod="RTSTRUCT"):
+                rinst_data = InstanceData(
+                    os.path.join(rdicom.abspath, rdicom_file), 
+                    DataType(FileType.RTSTRUCT, rdicom.type.meta))
+            
+            # add data to parent instance
+            parent_instance.addData(rinst_data)
+            
+            # confirm data
+            if os.path.isfile(os.path.join(rdicom.abspath, rdicom_file)):
+                rinst_data.confirm()
+            
+            # remove related instance
+            self.config.data.instances.remove(rinst)
+
     def task(self) -> None:
 
         # resolve the input directory
@@ -244,3 +338,6 @@ class DicomImporter(Module):
             else:
                 raise ValueError("Error: input directory structure is unknown. Cannot determine if this is a single series or multiple series.")
             
+        # combine instances of dicomseg and dicom files if linked
+        if self.merge:
+            self.combine()
