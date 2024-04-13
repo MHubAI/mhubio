@@ -60,6 +60,8 @@ import_paths = {
     'TiffConverter': 'mhubio.modules.convert.TiffConverter',
     'RTStructConverter': 'mhubio.modules.convert.RTStructConverter',
     'PngConverter': 'mhubio.modules.convert.PngConverter',
+    
+    'DsegExtractor': 'mhubio.modules.processor.DsegExtractor',
 
     'DataOrganizer': 'mhubio.modules.organizer.DataOrganizer',
 
