@@ -62,6 +62,7 @@ import_paths = {
     'PngConverter': 'mhubio.modules.convert.PngConverter',
     
     'DsegExtractor': 'mhubio.modules.processor.DsegExtractor',
+    'RTStructExtractor': 'mhubio.modules.processor.RTStructExtractor',
 
     'DataOrganizer': 'mhubio.modules.organizer.DataOrganizer',
     'FileRemover': 'mhubio.modules.organizer.FileRemover',
