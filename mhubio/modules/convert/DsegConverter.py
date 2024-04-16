@@ -41,8 +41,6 @@ class DsegConverter(Module):
     @IO.Instance()
     @IO.Inputs('source_segs', the="data to be converted")
     @IO.Input('target_dicom', the="dicom used as reference for the conversion")
-    #@IO.Inputs("in_segs", IO.C("source_segs"), the="input data to convert to dicomseg")
-    #@IO.Input("in_dicom", IO.C("target_dicom"), the="input dicom data to convert to dicomseg")
     @IO.Output('out_data', path=IO.C('converted_file_name'), dtype='dicomseg:mod=seg', data='target_dicom', bundle=IO.C('bundle_name'), auto_increment=True, the="converted data")
     def task(self, instance: Instance, source_segs: InstanceDataCollection, target_dicom: InstanceData, out_data: InstanceData) -> None:
         
@@ -57,7 +55,7 @@ class DsegConverter(Module):
 
             # generate json meta generator instance
             generator = DcmqiDsegConfigGenerator(
-                model_name = self.model_name,
+                model_name = "MHub.ai " + self.model_name,
                 body_part_examined = self.body_part_examined,
             )
 

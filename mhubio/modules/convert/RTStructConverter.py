@@ -22,6 +22,7 @@ from rt_utils import RTStructBuilder
 @IO.Config('skip_empty_slices', bool, True, the='flag to skip empty slices')
 @IO.Config('converted_file_name', str, 'seg.dcm', the='name of the converted file')
 @IO.Config('bundle_name', str, None, the="bundle name converted data will be added to")
+@IO.Config('model_name', str, 'MHub-Model', the="model name populated in the dicom seg SeriesDescription attribute")
 @IO.Config('segment_id_meta_key', str, 'roi', the='meta key used to identify the roi in the dicomseg json config file')
 @IO.Config('use_pin_hole', bool, False, the='flag for pin holes. If set to true, lines will be erased through your mask such that each separate region within your image can be encapsulated via a single contour instead of contours nested within one another. Use this if your RT Struct viewer of choice does not support nested contours / contours with holes.')
 @IO.Config('approximate_contours', bool, True, the='flag defines whether or not approximations are made when extracting contours from the input mask. Setting this to false will lead to much larger contour data within your RT Struct so only use this if as much precision as possible is required.')
@@ -32,6 +33,7 @@ class RTStructConverter(Module):
     skip_empty_slices: bool
     converted_file_name: str
     bundle_name: str
+    model_name: str
     segment_id_meta_key: str
     use_pin_hole: bool
     approximate_contours: bool
@@ -106,6 +108,9 @@ class RTStructConverter(Module):
 
                 except Exception as e:
                     print(f"Error adding segment '{segment_id}' to RT Struct: {str(e)}")
+
+        #
+        rtstruct.set_series_description("MHub.ai " + self.model_name)
 
         # save rt struct
         rtstruct.save(out_data.abspath)
