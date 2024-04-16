@@ -55,6 +55,26 @@ class InstanceDataCollection:
     def filterByString(cls, pool: List['InstanceData'], ref_type: str, confirmed_only: bool = True) -> List['InstanceData']:
         return cls.filterByDataType(pool, DataType.fromString(ref_type), confirmed_only)
 
+    def remove(self, data: Union[InstanceData, List[InstanceData], 'InstanceDataCollection'], delete_files: bool = True) -> None:
+        
+        # uniform data collection to list type
+        if isinstance(data, InstanceData):
+            _data = [data]
+            
+        elif isinstance(data, list):
+            _data = data
+                
+        elif isinstance(data, InstanceDataCollection):
+            _data = data.asList()
+            
+        # remove data from collection
+        for d in _data:
+            assert d in self._data, f"Data {d} not in collection."
+            if delete_files:
+                d.delete()
+            else:
+                self._data.remove(d)
+
     def filter(self, ref_types: Union[DataType, str, List[DataType], List[str], DataTypeQuery], confirmed_only: bool = False) -> 'InstanceDataCollection':
         if isinstance(ref_types, list) or isinstance(ref_types, DataType): 
             print("\033[95mDEPRECATION WARNING: InstanceDataCollection.filter() should be called with a DataTypeQuery instance or DataTypeQuery compatible string.\033[0m")

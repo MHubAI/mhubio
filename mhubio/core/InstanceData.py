@@ -8,7 +8,7 @@ Author: Leonard Nürnberg (27.02.2023)
 Email:  leonard.nuernberg@maastrichtuniversity.nl
 -------------------------------------------------
 """
-import os
+import os, shutil
 
 from typing import Optional
 from .DirectoryChain import DirectoryChainInterface
@@ -112,6 +112,17 @@ class InstanceData(DirectoryChainInterface):
     
     def confirm(self) -> None:
         self._confirmed = True
+        
+    def delete(self) -> None:
+        
+        # delete file
+        if os.path.isfile(self.abspath):
+            os.remove(self.abspath)
+        else:
+            shutil.rmtree(self.abspath)
+        
+        # remove from instance
+        self.instance.data.remove(self, delete_files=False)
 
     def getDataBundle(self, ref: str) -> 'InstanceDataBundle':
         return InstanceDataBundle(ref=ref, instance=self.instance, bundle=self.bundle)
