@@ -64,6 +64,7 @@ import_paths = {
     'DsegExtractor': 'mhubio.modules.processor.DsegExtractor',
 
     'DataOrganizer': 'mhubio.modules.organizer.DataOrganizer',
+    'FileRemover': 'mhubio.modules.organizer.FileRemover',
 
     'JsonSegExporter': 'mhubio.modules.exporter.JsonSegExporter',
     'ReportExporter': 'mhubio.modules.exporter.ReportExporter',
