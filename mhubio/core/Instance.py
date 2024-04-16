@@ -105,7 +105,7 @@ class Instance(DirectoryChainInterface):
                     else:
                         img_itk = sitk.ReadImage(data.abspath)
                     img_np = sitk.GetArrayFromImage(img_itk)
-                    print(f"│   └── {cgray}Image: {img_itk.GetSize()} {img_itk.GetSpacing()} {img_itk.GetOrigin()} [{img_np.min()},{img_np.max()}]{cend}")
+                    print(f"│   └── {cgray}Image: {img_itk.GetSize()} {img_itk.GetSpacing()} {img_itk.GetOrigin()} {img_np.shape} [{img_np.min()},{img_np.max()}] {img_np.dtype}{cend}")
 
         for data in self.outputData:
             print(f"├── {chead}{str(data.name)}{cend} [{data.label}]")
