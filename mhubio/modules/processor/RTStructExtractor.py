@@ -47,13 +47,15 @@ class RTStructExtractor(Module):
         for in_data in in_datas:
             self.process_rtstruct(in_data, target_dicom, bundle, out_datas)
         
+    def make_seg_fname(self, segment_id: int, segment_name: str) -> str:
+        clean_segment_name = "".join([c for c in segment_name.lower() if c.isalnum() or c == " "]).replace(" ", "_")
+        clean_segment_name = clean_segment_name[:30] # limit to 30 characters
+        return f"lbl{str(segment_id).zfill(3)}-{clean_segment_name}.nii.gz"
+        
     def process_rtstruct(self, in_data: InstanceData, target_dicom: InstanceData, bundle: InstanceDataBundle, out_datas: InstanceDataCollection) -> None:
         
         # create a temp folder
         temp_folder = self.config.data.requestTempDir("RTStructExtractor")
-        
-        # random 10 digit run id
-        run_id = uuid.uuid4().hex[:10]
         
         # define temp output files
         ss_img_file = os.path.join(temp_folder, "ss.nii.gz")
@@ -128,13 +130,15 @@ class RTStructExtractor(Module):
             label_id = segment_id + 1
              
             # transfer metadata from input data
+            out_data_fname = self.make_seg_fname(label_id, segment_name)
             out_data_type = DataType(FileType.NIFTI, Meta(origin="rtstruct") + in_data.type.meta + SEG)
              
             # define output file
             out_data = InstanceData(
-                path=os.path.join(bundle.abspath, f"{run_id}-{label_id}.nii.gz"),
+                path=os.path.join(bundle.abspath, out_data_fname),
                 type=out_data_type,
-                bundle=bundle
+                bundle=bundle,
+                auto_increment=True
             )
             
             # extend the meta data

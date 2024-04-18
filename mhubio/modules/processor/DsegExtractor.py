@@ -56,6 +56,13 @@ class DsegExtractor(Module):
         # iterate all dicomseg files 
         for in_data in in_datas:
             self.process_dicomseg(in_data, img_itk, bundle, out_datas)
+           
+           
+    def make_seg_fname(self, segment_id: int, segment_name: str) -> str:
+        clean_segment_name = "".join([c for c in segment_name.lower() if c.isalnum() or c == " "]).replace(" ", "_")
+        clean_segment_name = clean_segment_name[:30] # limit to 30 characters
+        return f"lbl{str(segment_id).zfill(3)}-{clean_segment_name}.nii.gz"
+        
             
     def process_dicomseg(self, in_data: InstanceData, target_dicom_img_itk: sitk.Image, bundle: InstanceDataBundle, out_datas: InstanceDataCollection) -> None:
             
@@ -114,7 +121,8 @@ class DsegExtractor(Module):
                     segment = Segment.fromJSON(segment_config)
                     segmentation_segdb_ids.append(segment.getID())
                 except:
-                    segmentation_segdb_ids.append(None)
+                    segment_desctiption = segment_config.get("SegmentDescription", "n/a")
+                    segmentation_segdb_ids.append(segment_desctiption)
 
             # debug log
             self.log.debug("captured segmentation ids (auto roi) from segdb meta.json config: ", segmentation_segdb_ids)
@@ -123,30 +131,35 @@ class DsegExtractor(Module):
         identity_tfx = sitk.Transform(3, sitk.sitkIdentity)
         
         # iterate bundle and add output data
-        for file in os.listdir(str(bundle.abspath)):
+        #for file in os.listdir(str(bundle.abspath)):
+        for segment_id, segment_name in enumerate(segmentation_segdb_ids):
+             
+            # label id (1-indext, 0=bg)
+            label_id = segment_id + 1
             
             # ignore non nifti files
-            if not (file.endswith(".nii.gz") and file.startswith(run_id)):
-                continue
+            #if not (file.endswith(".nii.gz") and file.startswith(run_id)):
+            #    continue
+
+            # define the segmentation file name and rename the random file
+            out_data_fname = self.make_seg_fname(label_id, segment_name)
             
             # transfer metadata from input data
             out_data_type = DataType(FileType.NIFTI, Meta(origin="dicomseg") + in_data.type.meta + SEG)
 
             # specify the output data file
             out_data = InstanceData(
-                path=os.path.join(bundle.abspath, file),
+                path=os.path.join(bundle.abspath, out_data_fname),
                 type=out_data_type,
-                bundle=bundle
+                bundle=bundle,
+                auto_increment=True
             )
             
-            # if rois is set
-            if segmentation_segdb_ids:
-                
-                # get index from file name (<runid>-<index>.nii.gz)
-                index = int(file.split("-")[-1].split(".")[0]) - 1
-            
-                # extend the meta data
-                out_data.type.meta += Meta(roi=segmentation_segdb_ids[index])
+            # rename the random (<runid>-<index>.nii.gz) file to the output file 
+            os.rename(os.path.join(bundle.abspath, f"{run_id}-{label_id}.nii.gz"), out_data.abspath)
+
+            # extend the meta data
+            out_data.type.meta += Meta(roi=segment_name)
                 
             # correct the size of the segmentation masks by applying a 
             #  id transform with simple itk
