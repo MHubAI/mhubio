@@ -28,6 +28,8 @@ class InputDirStructure(Enum):
 @IO.Config('source_dir', str, 'input_data', the="source input directory containing the (unsorted) dicom data")
 @IO.Config('import_dir', str, 'sorted_data', the="output directory where the imported (sorted / organized) dicom data will be placed")
 @IO.Config('sort_data', bool, True, the="flag to turn data sorting using dicomsort off if input data is sorted already")
+@IO.Config('import_data', bool, True, the="flag to enable the import process")
+@IO.Config('structure', str, "%SeriesInstanceUID/dicom/%SOPInstanceUID.dcm", the="schema used for sorting the dicom data")
 @IO.Config('merge', bool, True, the="flag to merge related dicom data into one instance")
 @IO.Config('meta', dict, {'mod': '%Modality'}, the="meta data used for every imported instance")
 class DicomImporter(Module):
@@ -42,11 +44,12 @@ class DicomImporter(Module):
     source_dir: str
     import_dir: str
     sort_data: bool
-    structure: str = "%SeriesInstanceUID/dicom/%SOPInstanceUID.dcm"
+    import_data: bool
+    structure: str
     merge: bool 
     meta: dict
 
-    def sort(self, input_dir, sorted_dir, schema) -> None:   
+    def run_dicomsort(self, input_dir, sorted_dir, schema) -> None:   
 
         # print schema
         self.v()
@@ -180,7 +183,6 @@ class DicomImporter(Module):
         if os.path.isdir(dicom_data.abspath):
             dicom_data.confirm()
 
-
     def importMultipleInstances(self, input_dir: str, sorted_dir: str) -> None:
         
         # iterate sorted data and generate a new instance with the dicom data 
@@ -294,7 +296,7 @@ class DicomImporter(Module):
             elif rdicom.type.meta <= Meta(mod="RTSTRUCT"):
                 rinst_data = InstanceData(
                     os.path.join(rdicom.abspath, rdicom_file), 
-                    DataType(FileType.RTSTRUCT, rdicom.type.meta))
+                    DataType(FileType.RTSTRUCT, rdicom.type.meta + SEG))
             
             # add data to parent instance
             parent_instance.addData(rinst_data)
@@ -316,13 +318,21 @@ class DicomImporter(Module):
         self.v("> import sort  dir: ", self.import_dir, " --> ", import_dc.abspath)
 
         # either sort data and import or only import from restricted input strucure
-        if self.sort_data:
+        if self.import_data and self.sort_data:
 
             # sort data and import
-            self.sort(source_dc.abspath, import_dc.abspath, self.structure)
+            self.run_dicomsort(source_dc.abspath, import_dc.abspath, self.structure)
+            
+            # import the data
             self.importSorted(import_dc.abspath)
 
-        else:
+        elif not self.import_data and self.sort_data:
+
+            # sort data only
+            self.run_dicomsort(source_dc.abspath, import_dc.abspath, self.structure)
+
+        elif self.import_data:
+            
             self.v()
             self.v("> bypassing sorting process")
 
