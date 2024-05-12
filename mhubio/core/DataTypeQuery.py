@@ -65,6 +65,7 @@ class DataTypeQuery:
     query: str
 
     def __init__(self, query: str) -> None:
+        assert isinstance(query, str)
         self.query = query
 
     def exec(self, ref_type: DataType) -> bool:
@@ -199,7 +200,8 @@ class DataTypeQuery:
                 
         # add pseudo meta keys for list lengths
         for k in ref_meta.keys():
-            ref_meta += {k + '.length': str(len(ref_meta[k].split(',')))}
+            if isinstance(ref_meta[k], str):
+                ref_meta += {k + '.length': str(len(ref_meta[k].split(',')))}
             
         # meta matching
         return all(cls.evaluateMeta(md, ref_meta) for md in metas_def)

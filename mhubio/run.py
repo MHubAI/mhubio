@@ -10,7 +10,7 @@ python3 -m mhubio.run
     --cleanup                       : clean the output folder and internal fodlers,
                                       use when you start from within the container
     --non-interactive               : disable interactive mode (only when no workflow 
-                                      is provided and Docker is not startwd using 
+                                      is provided and Docker is not started using 
                                       the `-it` flag)
     --debug                         : show debug output
     --print                         : print output to stdout instead of showing 
@@ -35,7 +35,7 @@ parser.add_argument('--config', type=str, help='The workflow configuration file.
 parser.add_argument('--workflow', type=str, help='Instead of specifying the absolute path to the config file in the --config argument, specify the workflow which is the filename of the config file without the .yml extension.')
 parser.add_argument('--model', type=str, help='Use this argument to specify the model where the workflow belongs to. This is only necessary if multiple models are present in the container.')
 parser.add_argument('--cleanup', action='store_true', help='Clean the output folder and internal folders. Use this flag if you execute mhub from within the container.')
-parser.add_argument('--non-interactive', action='store_true', help='Disable interactive mode (only effective when no workflow is provided and Docker is not startwd using the `-it` flag).')
+parser.add_argument('--non-interactive', action='store_true', help='Disable interactive mode (only effective when no workflow is provided and Docker is not started using the `-it` flag).')
 parser.add_argument('--debug', action='store_true', help='Print a list of the internal data structure of MHub after each executed Module (step of the workflow).')
 parser.add_argument('--print', action='store_true', help='Print output to stdout instead of showing a progress bar and disable generation of log files.')
 parser.add_argument('--stop-on-error', action='store_true', help='Stop execution if an error occurs. Only valid, when --print is set.')
@@ -94,7 +94,12 @@ class f(str, Enum):
 
 def scan_local_modules(base_dir: str = '/app/models') -> Dict[str, str]:
     local_import_paths = {}
-
+    
+    # return no local modules if base directory does not exist
+    if not os.path.exists(base_dir):
+        return local_import_paths
+    
+    # scan directory
     for model_dir in os.listdir(base_dir):
         model_path = os.path.join(base_dir, model_dir)
         model_utils_path = os.path.join(model_path, 'utils')
@@ -113,6 +118,11 @@ def scan_local_modules(base_dir: str = '/app/models') -> Dict[str, str]:
 def scan_configurations(base_dir: str = '/app/models') -> List[Dict[str, str]]:
     configurations = []
 
+    # return no configurations if base directory does not exist
+    if not os.path.exists(base_dir):
+        return configurations
+
+    # scan directory
     for model_dir in os.listdir(base_dir):
         configs_path = os.path.join(base_dir, model_dir, 'config')
 

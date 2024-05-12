@@ -32,15 +32,17 @@ def check_signature(func: Callable[..., Any], sig: Dict[str, Type]):
         if not ofunc_sig.parameters[key].annotation == value:
             raise IOError(f"Parameter '{key}' of function '{func._mhubio_ofunc.__name__}' must be of type '{value}' but is of type '{ofunc_sig.parameters[key].annotation}' instead.")
 
-def resolve_dtq(self: Module, func: Callable[..., Any], name: str, dtype: Aopt[str] = None) -> str:
+def resolve_dtq(self: Module, func: Callable[..., Any], name: str, dtype: Aopt[str] = None) -> DataTypeQuery:
     if dtype is None:
         assert hasattr(self, '_mhubio_configinput_' + name), \
             f"@IO.Input wrapper on Method {self.__class__.__name__}.{(func._mhubio_ofunc if hasattr(func, '_mhubio_ofunc') else func).__name__}(..) has no dtype set and no matching @IO.ConfigInput wrapper with name '{name}' found on Class {self.__class__.__name__}."
-        return getattr(self, '_mhubio_configinput_' + name)()
+        dtq: DataTypeQuery = getattr(self, '_mhubio_configinput_' + name)()
     elif callable(dtype):
-        return dtype(self) 
+        dtq = DataTypeQuery(dtype(self))
     else:
-        return dtype
+        dtq = DataTypeQuery(dtype)
+
+    return dtq
 
 # factory tools
 class F:
@@ -322,7 +324,7 @@ class IO:
 
 
     @staticmethod
-    def Output(name: str, path: A[str], dtype: A[str], data: Optional[str] = None, bundle: Optional[A[str]] = None, auto_increment: bool = False, in_signature: bool = True, the: Optional[str] = None) -> Callable[[Callable[Concatenate[T, 'Instance', P], None]], Callable[[T, 'Instance'], None]]:
+    def Output(name: str, path: A[str], dtype: A[str], data: Optional[str] = None, bundle: Optional[A[str]] = None, auto_increment: bool = True, in_signature: bool = True, the: Optional[str] = None) -> Callable[[Callable[Concatenate[T, 'Instance', P], None]], Callable[[T, 'Instance'], None]]:
         def decorator(func: Callable[Concatenate[T, Instance, P], None]) -> Callable[[T, Instance], None]:
             
             if in_signature:
@@ -366,7 +368,7 @@ class IO:
         return decorator
 
     @staticmethod
-    def Outputs(name: str, path: A[str], dtype: A[str], data: Optional[str] = None, bundle: Optional[A[str]] = None, wrapper: Optional[A[str]] = None, auto_increment: bool = False, in_signature: bool = True, the: Optional[str] = None) -> Callable[[Callable[Concatenate[T, 'Instance', P], None]], Callable[[T, 'Instance'], None]]:
+    def Outputs(name: str, path: A[str], dtype: A[str], data: Optional[str] = None, bundle: Optional[A[str]] = None, wrapper: Optional[A[str]] = None, auto_increment: bool = True, in_signature: bool = True, the: Optional[str] = None) -> Callable[[Callable[Concatenate[T, 'Instance', P], None]], Callable[[T, 'Instance'], None]]:
         
         # NOTE: that specifying the `auto_incrtement=True` argument on the `@IO.Outputs` decorator would't work as expected in the past if the paths are generated within the Decorator but as the files do not yet exists it's non-effective. 
         # -----> This is now experimentally solved with the additional  _path_used_in_instance check.
@@ -374,8 +376,8 @@ class IO:
         if bundle and wrapper:
             raise IOError("Cannot specify both bundle and wrapper")
         
-        if auto_increment and not data:
-            raise IOError("If no reference data is specified, instance data creation has to be implemented manually and thus auto_increment has no effect here (but can be used on InstanceData(... ,auto_increment=True) instead).")
+        # if auto_increment and not data:
+        #     raise IOError("If no reference data is specified, instance data creation has to be implemented manually and thus auto_increment has no effect here (but can be used on InstanceData(... ,auto_increment=True) instead).")
 
         def decorator(func: Callable[Concatenate[T, Instance, P], None]) -> Callable[[T, Instance], None]:
             

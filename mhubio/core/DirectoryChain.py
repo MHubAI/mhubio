@@ -34,8 +34,8 @@ class DirectoryChain:
     # abspath: str
 
     def __init__(self, path: str, base: Optional[str] = None, parent: Optional['DirectoryChain'] = None) -> None:
-        self.path: str = path
-        self.base: Optional[str] = base
+        self.path: str = str(path)
+        self.base: Optional[str] = str(base) if base is not None else None
         self.parent: Optional[DirectoryChain] = parent
 
     @property
@@ -49,7 +49,7 @@ class DirectoryChain:
         self.parent = parent
 
     def setPath(self, path: str) -> None:
-        self.path = path
+        self.path = str(path)
 
     def isEntrypoint(self) -> bool:
         return self.base is not None or self.path[:1] == os.sep
