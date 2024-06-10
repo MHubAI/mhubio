@@ -25,7 +25,7 @@ def str2lst(string: Union[List[str], str]) -> list:
         return string
 
 @IO.ConfigInput('target_dicom', 'dicom:mod=ct|mr', the='Dicom image file.')
-@IO.ConfigInput('in_datas', 'rtstruct:mod=RTSTRUCT', the='Dicom segmentation file.')
+@IO.ConfigInput('in_datas', 'rtstruct:mod=seg', the='Dicom segmentation file.')
 @IO.Config('bundle', str, 'nifti', the='Bundle name converted data will be added to')
 @IO.Config('roi', list, [], factory=str2lst, the='Komma separated list of SegDB IDs in the order of the segments in the dicomseg file.')
 class RTStructExtractor(Module):
@@ -83,6 +83,7 @@ class RTStructExtractor(Module):
             
             # use the manually specified roi
             # NOTE: manual specifying ROI doesnt work if there are multiple (>1) DICOMSEG files available per instance
+            self.log.debug("captured segmentation ids (manual roi) from config: ", self.roi)
             segmentation_segdb_ids = self.roi
         
         else:
