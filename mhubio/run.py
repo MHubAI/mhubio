@@ -4,6 +4,8 @@ MHub - MHubIO Runner (entrypoint).
 python3 -m mhubio.run 
 
     --config path/to/default.yml    : the workflow configuration file
+    --utility $utilityname          : run a utility workflow, shortcut for 
+                                      --config /app/utility/config/$utilityname.yml
     --workflow default              : shortcut for --config path/to/default.yml
     --model $modelname              : only if multiple models are present in 
                                       the container
@@ -23,16 +25,17 @@ Email:  leonard.nuernberg@maastrichtuniversity.nl
 -------------------------------------------------
 """
 
-from typing import Dict, List, Optional, Union, Any, Tuple, Type
-import argparse, sys, os, importlib, yaml, shutil
+from typing import Dict, List, Optional, Union, Tuple, Type
+import argparse, sys, os, importlib, yaml, shutil, math
 from mhubio.core import Config, Module
 from enum import Enum
 from mhubio.core.Logger import MLog
 
 # update this document with argparse
 parser = argparse.ArgumentParser(description='MHubIO Runner')
-parser.add_argument('--config', type=str, help='The workflow configuration file.')
-parser.add_argument('--workflow', type=str, help='Instead of specifying the absolute path to the config file in the --config argument, specify the workflow which is the filename of the config file without the .yml extension.')
+parser.add_argument('-c', '--config', type=str, help='The workflow configuration file.')
+parser.add_argument('-u', '--utility', type=str, help='Run a utility workflow. \n Shortcut for --config /app/utility/config/$UTILITY.yml', nargs='?', const='')
+parser.add_argument('-w', '--workflow', type=str, help='Instead of specifying the absolute path to the config file in the --config argument, specify the workflow which is the filename of the config file without the .yml extension.')
 parser.add_argument('--model', type=str, help='Use this argument to specify the model where the workflow belongs to. This is only necessary if multiple models are present in the container.')
 parser.add_argument('--cleanup', action='store_true', help='Clean the output folder and internal folders. Use this flag if you execute mhub from within the container.')
 parser.add_argument('--non-interactive', action='store_true', help='Disable interactive mode (only effective when no workflow is provided and Docker is not started using the `-it` flag).')
@@ -94,24 +97,30 @@ class f(str, Enum):
 
 def scan_local_modules(base_dir: str = '/app/models') -> Dict[str, str]:
     local_import_paths = {}
-    
-    # return no local modules if base directory does not exist
-    if not os.path.exists(base_dir):
-        return local_import_paths
-    
-    # scan directory
-    for model_dir in os.listdir(base_dir):
-        model_path = os.path.join(base_dir, model_dir)
-        model_utils_path = os.path.join(model_path, 'utils')
-        
-        if not os.path.isdir(model_utils_path):
-            continue
+       
+    # scan model directories (only if base directory exists)
+    if os.path.exists(base_dir):
+        for model_dir in os.listdir(base_dir):
+            model_path = os.path.join(base_dir, model_dir)
+            model_utils_path = os.path.join(model_path, 'utils')
+            
+            if not os.path.isdir(model_utils_path):
+                continue
 
-        for module_file in os.listdir(model_utils_path):
-            module_path = os.path.join(model_utils_path, module_file)
+            for module_file in os.listdir(model_utils_path):
+                module_path = os.path.join(model_utils_path, module_file)
+                if module_path.endswith('.py'):
+                    module_class_name = module_file[:-3]
+                    local_import_paths[module_class_name] = f'models.{model_dir}.utils.{module_class_name}'
+
+    # scan extra directories (if provided)
+    extra_dir = "/app/xmodules"
+    if os.path.exists(extra_dir):
+        for module_file in os.listdir(extra_dir):
+            module_path = os.path.join(extra_dir, module_file)
             if module_path.endswith('.py'):
                 module_class_name = module_file[:-3]
-                local_import_paths[module_class_name] = f'models.{model_dir}.utils.{module_class_name}'
+                local_import_paths[module_class_name] = f'xmodules.{module_class_name}'
 
     return local_import_paths
 
@@ -147,6 +156,29 @@ def scan_configurations(base_dir: str = '/app/models') -> List[Dict[str, str]]:
                 })
 
     return configurations
+
+def scan_utilities(base_dir: str = '/app/utility/config') -> List[Dict[str, str]]:
+    utilities = []
+
+    # return no utilities if base directory does not exist
+    if not os.path.exists(base_dir):
+        return utilities
+
+    # scan directory
+    for utility_file in os.listdir(base_dir):
+        if utility_file.endswith('.yml'):
+            utility_path = os.path.join(base_dir, utility_file)
+            
+            with open(utility_path, 'r') as f:
+                config = yaml.safe_load(f)
+            
+            utilities.append({
+                'name': os.path.splitext(utility_file)[0],
+                'config': utility_path,
+                'description': config['general']['description'] if 'description' in config['general'] else 'n/a'
+            })
+
+    return utilities
 
 def print_configurations(configurations: List[Dict], selection: int = 0, interactive: bool = False) -> Optional[str]:
     print(f'\n{f.chead}Available configurations:{f.cend}\n')
@@ -239,11 +271,46 @@ def get_config_path(configurations: List[Dict[str, str]]) -> Optional[str]:
     if args.config is not None:
         return args.config
 
+    # check if a utility script is selected
+    if args.utility is not None:
+        utilities = scan_utilities()
+        utility_names = [u['name'] for u in utilities]
+        print_utility_list = False
+        
+        # check if utility is defined
+        if not args.utility in utility_names and len(args.utility):
+            print(f"{f.chead+f.fbold}Error{f.cend+f.fnormal}: The specified utility '{args.utility}' was not found in this container.")
+            print_utility_list = True
+            
+        elif len(args.utility) == 0:
+            print_utility_list = True
+          
+        # print utility list and exit if 
+        # - specified utility is not found 
+        # - utility is 'list' or None
+        if print_utility_list:  
+            print(f'\n{f.chead}Available utilities:{f.cend}\n')
+            for u in utilities:
+                print(f"   {f.cyan}{u['name']}{f.cend}")
+                print(f"     {f.cgray}config: {u['config']}{f.cend}")
+                print(f"     {f.cgray+f.fitalics}{u['description']}{f.fnormal}")
+                print()
+            sys.exit(0)
+            
+        # return absolute config path for utility workflow
+        assert os.path.isfile(f'/app/utility/config/{args.utility}.yml')       
+        return f'/app/utility/config/{args.utility}.yml'
+
     # check if model is defined or there is only one model present
     models = list(set(c['model'] for c in configurations))
     model = None
 
-    if len(models) == 1:
+    if len(models) == 0:
+        print(f"{f.chead+f.fbold}Error{f.cend+f.fnormal}: No models found in this container.")
+        print(f"{f.cgray}You can either run a workflow directly using the --config flag or use the --utility flag to run a utility script.{f.cend}")
+        sys.exit(0)
+
+    elif len(models) == 1:
         model = models[0]
 
         # inform the user that there is just one model and it was selected automatically, so --model will be ignored. However, we'll clean up the commandline in the interactive routine so...
@@ -297,14 +364,14 @@ def get_workflow(execute_chain: List[Union[str, Dict]]) -> List[Tuple[str, Dict]
         workflow.append((module_name, module_args))
     return workflow
 
-def run(config_file: Optional[str] = None):
+def run(config_file: Optional[str] = None, config_data: Optional[dict] = None):
     global import_paths
 
     # scan local modules
     import_paths = {**import_paths, **scan_local_modules()}
 
     # instantiate config
-    config = Config(config_file=config_file)
+    config = Config(config_file=config_file, config=config_data)
 
     # print config
     if args.debug:
@@ -366,6 +433,9 @@ def run(config_file: Optional[str] = None):
                 print(f'{f.cgray}  - {m}{f.cend}')
         return 
 
+    #
+    print_citation_header()
+
     # prepare MLog
     logger: Optional[MLog] = None
     if not args.print:
@@ -403,11 +473,102 @@ def run(config_file: Optional[str] = None):
             print()
             config.data.printInstancesOverview()
 
-if __name__ == '__main__':
 
+def print_citation_header():
+    
+    # template: 
+    """
+    **************************************************************
+    **                    CITATION NOTICE                       **
+    ** -------------------------------------------------------- **
+    **                                                          **
+    **  You are running an MHub model. Cite the MHub platform   **
+    **  in your work. Visit https://mhub.ai/cite for more.      **
+    **                                                          **
+    **  You are running a model. Please cite the authors of the **
+    **  model nd the MHub model url in your work:               **
+    **    The model card and run instructions for this model    **
+    **    are publicly available on the MHub platform under     **
+    **    https://mhub.ai/models/$model.                        **
+    **                                                          **
+    **  Thank you for using MHub!                               **
+    **                                                          **
+    **************************************************************   
+    """
+    
+    # width
+    w = 62
+    
+    # print helper
+    def p(s: Optional[str], w: int, indent: int = 0):
+        if s is None: s = " "
+        w -= 2 * 3 + indent # adjust for the frame
+        while len(s) > 0:
+            _w = min(w, len(s))
+            _s = s[:_w]
+            s = s[_w:]
+            
+            print(f"{f.chead}** {f.cend}", end="")
+            print(f"{' '*indent}{_s}{' '*(w-len(_s))}", end="")
+            print(f"{f.chead}{' **'}{f.cend}")
+    
+    # check for models
+    models: Optional[List[str]] = None
+    if args.model is not None:
+        models = [args.model]
+    elif os.path.exists('/app/models'):
+        models = [f for f in os.listdir('/app/models') if os.path.isdir(f'/app/models/{f}')]
+    
+    # head & centered title
+    print(f"{f.chead}{'*' * w}{f.cend}")
+    print(f"{f.chead}** {' '*math.ceil((w-21)/2)}CITATION NOTICE{' '*math.floor((w-21)/2)} **{f.cend}")
+    print(f"{f.chead}** {'-'*(w-2*3)} **{f.cend}")
+    
+    # body
+    p(None, w)
+    p("You are running an MHub model. Cite the MHub platform in your work. Visit https://mhub.ai/cite for more.", w)
+    p(None, w)
+    
+    if models is not None:
+        for model in models:
+            p(f"You are running a model. Please cite the authors of the model and the MHub model url in your work:", w)
+            p(f"The model card and run instructions for this model are publicly available on the MHub platform under https://mhub.ai/models/{model}.", w, 1)
+            p(None, w)
+        
+    p("Thank you for using MHub!", w)
+    p(None, w)
+    
+    # footer
+    print(f"{f.chead}{'*' * w}{f.cend}")
+    print()
+
+if __name__ == '__main__':
+    
+    # print citation header
+    print_citation_header()
+    
     # stop at error?
     if args.stop_on_error and args.print:
         os.environ['MLOG_STOP_ON_ERROR'] = 'YES'
+
+    # check if stdin is yaml file and if yes, load it as the config
+    config_file = None
+    if not sys.stdin.isatty():
+        try:
+                
+            # read input file from stdin and print it then exit
+            stdin_config = yaml.safe_load(sys.stdin)
+            
+            # save a temporary configfile
+            os.makedirs('/app/tmp', exist_ok=True)
+            with open('/app/tmp/stdin_config.yml', 'w') as file:
+                yaml.dump(stdin_config, file)
+            
+            # overwrite config_file
+            config_file = '/app/tmp/stdin_config.yml'
+            
+        except:
+            pass
 
     # interactive mode?
     interactive = not args.non_interactive
@@ -416,7 +577,8 @@ if __name__ == '__main__':
     configurations = scan_configurations()
 
     # get config file (if provided by one of the supported methods)
-    config_file = get_config_path(configurations)
+    if not config_file:
+        config_file = get_config_path(configurations)
 
     # check if a config file is provided via the --config argument
     if config_file is None:
