@@ -1,6 +1,6 @@
 """
 -------------------------------------------------
-MHub - Config, Instance & Data Classes
+MHub - Config / Workflow Configuration class
 -------------------------------------------------
 
 -------------------------------------------------
@@ -134,6 +134,19 @@ class Config:
             arg_config = config_argument_parser(arglst)
             self._config = dict_merge(arg_config, self._config.copy())
 
+
+        # setup custom segdb triplets and segments if defined in config
+        if 'segdb' in self._config:
+            
+            if 'segments' in self._config['segdb'] and isinstance(self._config['segdb']['segments'], dict):
+                from segdb.classes.Segment import Segment
+                for seg_id, seg_data in self._config['segdb']['segments']:
+                    Segment.register(seg_id, **seg_data)
+
+            if 'triplets' in self._config['segdb'] and isinstance(self._config['segdb']['triplets'], dict):
+                from segdb.classes.Triplet import Triplet
+                for trp_id, trp_data in self._config['segdb']['triplets'].items():
+                    Triplet.register(trp_id, overwrite=True, **trp_data)
 
         # Create a data handler with no instances.
         # NOTE: The first module should always be an importer module importing instances and instance data.
