@@ -140,7 +140,7 @@ class Config:
             
             if 'segments' in self._config['segdb'] and isinstance(self._config['segdb']['segments'], dict):
                 from segdb.classes.Segment import Segment
-                for seg_id, seg_data in self._config['segdb']['segments']:
+                for seg_id, seg_data in self._config['segdb']['segments'].items():
                     Segment.register(seg_id, **seg_data)
 
             if 'triplets' in self._config['segdb'] and isinstance(self._config['segdb']['triplets'], dict):
