@@ -66,14 +66,16 @@ import_paths = {
     
     'DsegExtractor': 'mhubio.modules.processor.DsegExtractor',
     'RTStructExtractor': 'mhubio.modules.processor.RTStructExtractor',
+    # 'BinaryLabelsExtractor': 'mhubio.modules.processor.BinaryLabelsExtractor',
 
     'DataOrganizer': 'mhubio.modules.organizer.DataOrganizer',
     'FileRemover': 'mhubio.modules.organizer.FileRemover',
 
     'JsonSegExporter': 'mhubio.modules.exporter.JsonSegExporter',
     'ReportExporter': 'mhubio.modules.exporter.ReportExporter',
+    # 'SRExporter': 'mhubio.modules.exporter.SRExporter',
 
-    'DummyRunner': 'mhubio.modules.runner.DummyRunner',
+    # 'DummyRunner': 'mhubio.modules.runner.DummyRunner',
     'NNUnetRunner': 'mhubio.modules.runner.NNUnetRunner'
 }
 
@@ -112,6 +114,26 @@ def scan_local_modules(base_dir: str = '/app/models') -> Dict[str, str]:
                 if module_path.endswith('.py'):
                     module_class_name = module_file[:-3]
                     local_import_paths[module_class_name] = f'models.{model_dir}.utils.{module_class_name}'
+
+    # scan mhubio-collection modules
+    #  collections are installed under /app/xcollections/<collection_name>/modules/<(group_name)>/<module_name>.py
+    collections_dir = '/app/xcollections'
+    if os.path.exists(collections_dir):
+        for collection in os.listdir(collections_dir):
+            collection_path = os.path.join(collections_dir, collection, 'modules')
+            if not os.path.isdir(collection_path):
+                continue
+
+            for group in os.listdir(collection_path):
+                group_path = os.path.join(collection_path, group)
+                if not os.path.isdir(group_path):
+                    continue
+
+                for module_file in os.listdir(group_path):
+                    module_path = os.path.join(group_path, module_file)
+                    if module_path.endswith('.py'):
+                        module_class_name = module_file[:-3]
+                        local_import_paths[module_class_name] = f'xcollections.{collection}.modules.{group}.{module_class_name}'
 
     # scan extra directories (if provided)
     extra_dir = "/app/xmodules"
@@ -543,9 +565,6 @@ def print_citation_header():
     print()
 
 if __name__ == '__main__':
-    
-    # print citation header
-    print_citation_header()
     
     # stop at error?
     if args.stop_on_error and args.print:
