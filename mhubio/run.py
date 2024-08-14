@@ -578,6 +578,11 @@ if __name__ == '__main__':
             # read input file from stdin and print it then exit
             stdin_config = yaml.safe_load(sys.stdin)
             
+            # check if the stdin_config is a vali yml object with 
+            # a 'general' and 'execute' sections
+            if not 'general' in stdin_config or not 'execute' in stdin_config:
+                raise Exception('Invalid configuration file provided via stdin.')
+            
             # save a temporary configfile
             os.makedirs('/app/tmp', exist_ok=True)
             with open('/app/tmp/stdin_config.yml', 'w') as file:
