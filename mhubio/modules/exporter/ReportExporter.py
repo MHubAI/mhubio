@@ -263,11 +263,11 @@ class ReportExporter(Module):
                     raise e from None
 
         # compact
-        if self.format == 'compact':
+        if format == ReportFormat.COMPACT:
             report = {r['label']: r['value'] for r in report}
 
         # nested
-        if self.format == 'nested':
+        if format == ReportFormat.NESTED:
             nested_report = {}
             for (label, value) in [(r['label'], r['value']) for r in report]:
                 _report = nested_report

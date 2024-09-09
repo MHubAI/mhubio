@@ -28,7 +28,7 @@ Email:  leonard.nuernberg@maastrichtuniversity.nl
 from typing import Dict, List, Optional, Union, Tuple, Type
 import argparse, sys, os, importlib, yaml, shutil, math
 from mhubio.core import Config, Module
-from enum import Enum
+import enum
 from mhubio.core.Logger import MLog
 
 # update this document with argparse
@@ -86,7 +86,7 @@ initialization_arguments = {
     }
 }
 
-class f(str, Enum):
+class f(enum.auto):
     chead       = '\033[95m'
     cyan        = '\033[96m'
     cgray       = '\033[30m'
