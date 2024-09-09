@@ -18,7 +18,7 @@ from .InstanceData import InstanceData
 from .DataType import DataType
 from .FileType import FileType
 
-import os, sys, time, statistics
+import os, sys, time, statistics, json
 
 class ConsoleCapture:
     def __init__(self, logger: Optional['MLog'], display_on_console=False):
@@ -99,6 +99,7 @@ class MLog:
 
     def __init__(self, config: Config) -> None:
         self.showProgress = True
+        self.showJsonProgress = False
         self.config: Config = config
         self.started: bool = False
 
@@ -250,6 +251,38 @@ class MLog:
         """
 
         if not self.showProgress:
+            return
+        
+        if self.showJsonProgress:
+            
+            print(json.dumps({
+                "current": {
+                    "module": {
+                        "label": self.module,
+                        "index": self.progress,
+                        "num_instances": self.instances,
+                        "instance_progress": self.instance_progress,
+                    },
+                    "instance": {
+                        "attr": self.instance.attr if self.instance else None,
+                        "str": str(self.instance) if self.instance else None,
+                        "index": self.instance_progress,
+                    }
+                },
+                "total": {
+                    "modules": [
+                        {
+                            "label": module,
+                            "index": i,
+                            "num_instances": len(self.timing[module]["instances"]) if module in self.timing else None,
+                            "start": self.timing[module]["start"] if module in self.timing else None,
+                            "stop": self.timing[module]["stop"] if module in self.timing else None,
+                            "indtance_avg": self.timing[module]["instance_average"] if module in self.timing else None,
+                        } for i, module in enumerate(self.steps)
+                    ],
+                    "instances": [i.attr for i in self.config.data.instances],
+                }
+            }))
             return
 
         MODULE_NAME_LEN = 27

@@ -42,6 +42,7 @@ parser.add_argument('--non-interactive', action='store_true', help='Disable inte
 parser.add_argument('--debug', action='store_true', help='Print a list of the internal data structure of MHub after each executed Module (step of the workflow).')
 parser.add_argument('--print', action='store_true', help='Print output to stdout instead of showing a progress bar and disable generation of log files.')
 parser.add_argument('--stop-on-error', action='store_true', help='Stop execution if an error occurs. Only valid, when --print is set.')
+parser.add_argument('--stream-json-progress', action='store_true', help='Stream progress information as json.')
 args, _ = parser.parse_known_args()
 
 # define import paths
@@ -464,7 +465,12 @@ def run(config_file: Optional[str] = None, config_data: Optional[dict] = None):
         logger = MLog(config)
         logger.showProgress = not args.debug
         config.useLogger(logger)
-
+        
+        # configure mlog
+        if args.stream_json_progress:
+            logger.showJsonProgress = True
+        
+        # regiser modules
         for (m, _) in workflow:
             logger.registerModule(m)
 
