@@ -9,9 +9,9 @@ Email:  leonard.nuernberg@maastrichtuniversity.nl
 -------------------------------------------------
 """
 
-from enum import Enum
+import enum
 
-class f(str, Enum):
+class f(enum.auto):
     chead       = '\033[95m'
     cyan        = '\033[96m'
     cgray       = '\033[30m'
