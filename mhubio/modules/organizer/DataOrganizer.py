@@ -172,18 +172,27 @@ class DataOrganizer(Module):
                         raise FileNotFoundError(f"Could not copy {inp_data.abspath} to {out_path}. File not found.")
                     
                     # set permissions to 666 (files) and 777 (directories), iteratively for directories
-                    if self.set_file_permissions: 
-                        if os.path.isfile(out_path):
-                            os.chmod(out_path, 0o666)
-                        elif os.path.isdir(out_path):
-                            for dirpath, _, filenames in os.walk(out_path):
-                                os.chmod(dirpath, 0o777)
-                                for filename in filenames:
-                                    os.chmod(os.path.join(dirpath, filename), 0o777)
-                        self.v(f'set permissions to 777 for {out_path}')
+                    # if self.set_file_permissions: 
+                    #     if os.path.isfile(out_path):
+                    #         os.chmod(out_path, 0o666)
+                    #     elif os.path.isdir(out_path):
+                    #         for dirpath, _, filenames in os.walk(out_path):
+                    #             os.chmod(dirpath, 0o777)
+                    #             for filename in filenames:
+                    #                 os.chmod(os.path.join(dirpath, filename), 0o777)
+                    #     self.v(f'set permissions to 777 for {out_path}')
 
                 else:
                     print(f"dry copy {inp_data.abspath} to {out_path}")
+
+        # set permissions to 777 (directories) and 666 (files) 
+        #  on any directory and file in the target directory
+        if self.set_file_permissions:
+            for dirpath, _, filenames in os.walk(self.output_dc.abspath):
+                os.chmod(dirpath, 0o777)
+                self.v(f"set permissions to 777 for {dirpath} and to 666 for {len(filenames)} nested files.")
+                for filename in filenames:
+                    os.chmod(os.path.join(dirpath, filename), 0o666)
 
         # end
         self.v()
