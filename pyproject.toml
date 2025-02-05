@@ -1,0 +1,57 @@
+[project]
+name = "mhubio"
+version = "0.0.3"
+description = "The glue layer framework used to harmonize MHub model's input and output data."
+readme = "README.md"  # Path to your README file
+license = { text = "MIT" }
+authors = [
+    { name = "Leonard Nürnberg", email = "lnuernberg@bwh.harvard.edu" }
+]
+keywords = ["mhub"]
+urls = { "Homepage" = "https://github.com/MHubAI/mhubio"}
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "License :: OSI Approved :: MIT License",
+]
+requires-python = ">=3.10" 
+dependencies = [
+  "colorspacious~=1.1.2",
+  "dcm2niix~=1.0.20220715",
+  "dcmqi~=0.2.0",
+  "h5py~=3.11.0",
+  "highdicom~=0.22.0",
+  "jsonschema~=3.2.0",
+  "pandas~=2.2.2",
+  "panimg~=0.13.2",
+  "pillow~=10.4.0",
+  "pydicom-seg~=0.4.1",
+  "pydicom~=2.4.4",
+  "pyplastimatch~=0.4.6",
+  "pyyaml~=6.0.2",
+  "rt-utils~=1.2.7",
+  "simpleitk~=2.4.0",
+  "thedicomsort~=1.0.1",
+  "toml~=0.10.2",
+  "typing-extensions~=4.12.2",
+  "segdb",
+]
+
+[dependency-groups]
+dev = [
+    "mypy<2.0.0,>=1.11.2",
+    "ruff<1.0.0,>=0.6.3",
+    "pytest<9.0.0,>=8.3.2",
+    "coverage>=7.6.10",
+]
+
+[build-system]
+requires = ["setuptools>=42", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+package-dir = { "mhubio" = "mhubio/" }
+
+[tool.uv.sources]
+segdb = { git = "https://github.com/MHubAI/SegDB" }
+
