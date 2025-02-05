@@ -1,6 +1,6 @@
 [project]
 name = "mhubio"
-version = "0.0.2"
+version = "0.0.3"
 description = "The glue layer framework used to harmonize MHub model's input and output data."
 readme = "README.md"  # Path to your README file
 license = { text = "MIT" }
