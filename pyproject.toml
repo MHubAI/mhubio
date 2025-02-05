@@ -51,6 +51,7 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
 packages = ["mhubio"]  
+include_package_data = true
 
 [tool.uv.sources]
 segdb = { git = "https://github.com/MHubAI/SegDB" }
