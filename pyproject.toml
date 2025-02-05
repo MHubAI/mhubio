@@ -50,13 +50,13 @@ requires = ["setuptools>=42", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
-packages = ["mhubio"]  
+#packages = ["mhubio"]  
 include-package-data = true
 
 [tool.uv.sources]
 segdb = { git = "https://github.com/MHubAI/SegDB" }
 
 # > we instead define  tool.setuptools.packages = ["mhubio"]
-# [tool.setuptools.packages.find]
-# include = ["mhubio"]  
+[tool.setuptools.packages.find]
+include = ["mhubio"]  
 
